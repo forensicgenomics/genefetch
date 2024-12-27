@@ -55,7 +55,7 @@ Run the fetcher with customizable options:
 
 ```bash
 python run_fetcher.py
-  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]"
+  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism] AND 16500:99999999[SLEN]"
   --max-num 1000
   --batch-size 100
   --fetch-parallel
@@ -67,7 +67,7 @@ or as a module:
 
 ```bash
 python -m fetcher.main
-  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]"
+  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism] AND 16500:99999999[SLEN]"
   --max-num 1000
   ...
 ```
