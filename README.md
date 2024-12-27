@@ -40,6 +40,9 @@ and stores everything into a convenient structure.
    - Save your email in `secrets/ncbi_email.txt`.
    - Save your NCBI API key in `secrets/ncbi_api_key.txt`.
 
+4. Adjust defaults
+   - Change global vars in `fetcher/global_defaults.py` if desired. 
+   - Add txt files of accession numbers to be excluded into `exclusions/`
 ---
 
 ## **Usage**
@@ -100,6 +103,9 @@ Default values are stored in `genefetch/global_defaults.py`.
 
 MitoFetch uses a `global_defaults.py` file to define global settings like directories, rate limits, and search terms.
 Update this file to customize your fetcher.
+
+If you have any profiles you want to exclude during fetching, you can add any number of `txt` files to `exclusions/`.
+Filters for these will be created dynamically.
 
 ---
 
