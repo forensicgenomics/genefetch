@@ -113,7 +113,7 @@ Filters for these will be created dynamically.
 
 ### **Project Structure**
 ```
-mitofetch/
+genefetch/
 │
 ├── fetcher/
 │   ├── __init__.py
