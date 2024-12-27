@@ -38,12 +38,12 @@ import threading
 import time
 from ratelimit import limits, sleep_and_retry
 
-from fetch_tools import (set_entrez_rate,
+from .fetch_tools import (set_entrez_rate,
                          set_entrez_globals,
                          filter_changed_profiles,
                          fetch_profile_accs,
                          readd_recently_modified_profiles)
-from file_io import (save_batch_info,
+from .file_io import (save_batch_info,
                      filter_unprocessed_ids,
                      load_processed_ids,
                      load_local_versions,
@@ -53,10 +53,10 @@ from file_io import (save_batch_info,
                      write_last_run_date,
                      write_seq_as_fasta,
                      post_process_metadata)
-from metadata_tools import (get_pubmed_info,
+from .metadata_tools import (get_pubmed_info,
                             get_assembly_info,
                             get_geo_info)
-from global_defaults import (LIMIT_NUM,
+from .global_defaults import (LIMIT_NUM,
                              SEARCH_TERM,
                              PROCESSED_IDS_DIR,
                              LOG_DIR,
@@ -68,8 +68,8 @@ from global_defaults import (LIMIT_NUM,
                              FETCH_PARALLEL,
                              METADATA_TEMPLATE,
                              FILTERS)
-from logger_setup import get_logger
-from post_process_check import main as post_process_check
+from .logger_setup import get_logger
+from .post_process_check import main as post_process_check
 
 
 # set up logging

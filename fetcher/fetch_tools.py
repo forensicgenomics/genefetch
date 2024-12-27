@@ -29,10 +29,10 @@ Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
 import os.path
 from datetime import date
 from Bio import Entrez
-from global_defaults import (API_DEST,
-                             EMAIL_DEST,
-                             SEQS_DIR,
-                             CHECK_FOR_FASTA)
+from .global_defaults import (API_DEST,
+                              EMAIL_DEST,
+                              SEQS_DIR,
+                              CHECK_FOR_FASTA)
 
 
 def set_entrez_globals(api:bool=True, email:bool=True):

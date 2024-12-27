@@ -19,7 +19,7 @@ Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
 """
 
 import logging
-from global_defaults import LOG_FILE, DEBUG_LOG_FILE
+from .global_defaults import LOG_FILE, DEBUG_LOG_FILE
 
 def get_logger():
     """

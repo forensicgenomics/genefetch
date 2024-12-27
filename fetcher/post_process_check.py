@@ -21,7 +21,7 @@ Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
 import os
 import pandas as pd
 
-from global_defaults import IDS_FILE, METADATA_FILE, REMOVED_IDS_FILE, SEQS_DIR
+from .global_defaults import IDS_FILE, METADATA_FILE, REMOVED_IDS_FILE, SEQS_DIR
 
 
 def check_duplicates_in_file(file_path, columns=None, logger=None):

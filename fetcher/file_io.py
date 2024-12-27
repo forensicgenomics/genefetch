@@ -38,7 +38,7 @@ from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
-from global_defaults import (CURRENT_PROCESSED_IDS_FILE,
+from .global_defaults import (CURRENT_PROCESSED_IDS_FILE,
                              METADATA_FILE,
                              LAST_RUN_PATH,
                              SEQS_DIR,
