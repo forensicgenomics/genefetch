@@ -37,8 +37,8 @@ and stores everything into a convenient structure.
    ```
 
 3. Add your email (and optionally NCBI API key):
-   - Save your email in `mitofetch/secrets/ncbi_email.txt`.
-   - Save your NCBI API key in `mitofetch/secrets/ncbi_api_key.txt`.
+   - Save your email in `secrets/ncbi_email.txt`.
+   - Save your NCBI API key in `secrets/ncbi_api_key.txt`.
 
 ---
 
@@ -59,10 +59,10 @@ python run_fetcher.py
   --soft-restart
 ```
 
-or as a module:
+or as a module:   
 
 ```bash
-python fetcher.main
+python -m fetcher.main
   --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]"
   --max-num 1000
   ...
@@ -117,6 +117,7 @@ mitofetch/
 │   ├── metadata_tools.py       # Metadata extraction functions
 │   ├── logger_setup.py         # Logger setup
 │   ├── global_defaults.py      # Global configuration
+│   ├── filter_tools.py         # Dynamic filtering rules
 │   └── post_process_check.py   # Post-processing validation
 │  
 ├── exclusions/                 # Manual exclusion lists
@@ -125,7 +126,7 @@ mitofetch/
 │── data/
 │   ├── logs/                   # Logs for debugging and auditing
 │   ├── processed_ids/          # Processed ID lists
-│   ├── seqs/                   # Sequence files
+│   ├── seqs/                   # Sequence FASTA files
 │   ├── ids_list.txt            # Fetched profile accession numbers
 │   ├── removed_ids.csv         # Filtered out profiles
 │   ├── metadata.csv            # Metadata df of fetched profiles
