@@ -153,9 +153,11 @@ def save_batch_info(index, filtered_entries, removed, metas, logger=None):
     """
     print("Saving batch info.")
 
-    update_local_versions(filtered_entries, logger)
-    save_metadata(metas, logger)
-    save_removed_versions(removed, logger)
+    if filtered_entries:
+        update_local_versions(filtered_entries, logger)
+        save_metadata(metas, logger)
+    if removed:
+        save_removed_versions(removed, logger)
 
     all_processed_ids = [rem.get("accession") for rem in removed] + filtered_entries
     save_processed_ids(all_processed_ids)
@@ -178,6 +180,7 @@ def split_accession(accession):
         accession_id, version = accession.split('.')
         return accession_id, int(version)
     except ValueError:
+        print(accession)
         raise ValueError(f"Invalid accession format: {accession}")
 
 

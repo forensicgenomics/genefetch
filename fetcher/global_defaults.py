@@ -83,19 +83,12 @@ CURRENT_PROCESSED_IDS_FILE = os.path.join(PROCESSED_IDS_DIR, f"processed_ids_{TI
 #################################################################################
 ####
 # filters which profiles to remove while fetching
-# written to 'removed_ids.csv' with filter description they were removed for
-#
-# following 2 are files that can hold accession numbers to exclude
-with open("exclusions/surveying_exclusion_ids.txt", "r") as f:
-    SURVEY_EXCLUDED = f.read().split("\n")
-with open("exclusions/manual_exclusion_ids.txt", "r") as f:
-    MANUALLY_EXCLUDED = f.read().split("\n")
 # current filters to remove:
 #   - length <16500 ; (In theory unnecessary, as this can be dealt with in the search string)
 #   - more than 30 missing bases in the sequence
 #   - more than 30 ambiguous bases in the sequence
 #   - human filter ; (necessary as the search string also returns 'Homo sapiens' subspecies)
-#   - manual exclusions cased on reliability of records
+#   - manual exclusions are added dynamically
 #
 # adjust / delete / append these filter list entries as needed
 FILTERS = [
@@ -114,16 +107,10 @@ FILTERS = [
     {
         'description': 'species',
         'fun': lambda record: record.annotations['organism'] != "Homo sapiens"
-    },
-    {
-        'description': 'surv_exclusion',
-        'fun': lambda record: record.id in SURVEY_EXCLUDED
-    },
-    {
-        'description': 'manual_exclusion',
-        'fun': lambda record: record.id in MANUALLY_EXCLUDED
     }
 ]
+# manual exclusions are added dynamically with all files in the following dir
+EXCLUSIONS_DIR = "exclusions"
 ####
 #################################################################################
 ####

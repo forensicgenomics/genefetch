@@ -66,11 +66,14 @@ from .global_defaults import (LIMIT_NUM,
                              BATCH_SIZE,
                              SOFT_RESTART,
                              FETCH_PARALLEL,
-                             METADATA_TEMPLATE,
-                             FILTERS)
+                             METADATA_TEMPLATE)
+from .filter_tools import load_filters
 from .logger_setup import get_logger
 from .post_process_check import main as post_process_check
 
+
+####
+# global vars
 
 # set up logging
 logger = get_logger()
@@ -78,7 +81,9 @@ logger = get_logger()
 # file lock writing for parallel fetching
 write_lock = threading.Lock()
 
-# global vars
+# dynamically load all filters
+FILTERS = load_filters()
+
 ### all of this needs to stay here otherwise it causes some parallel problems
 set_entrez_globals()
 MAX_CALLS_PER_SECOND = set_entrez_rate()
