@@ -21,6 +21,7 @@ and stores everything into a convenient structure.
 
 ### **Prerequisites**
 - Python 3.8 or higher
+- BioPython, ratelimits, pandas
 - NCBI API key (optional for increased rate limits)
 
 ### **Setup**
