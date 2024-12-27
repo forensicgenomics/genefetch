@@ -26,7 +26,7 @@ Usage:
 Dependencies: argparse, random, HTTPError, BioPython, pandas, concurrent.futures, ratelimit,
  custom modules for fetching, file I/O, and metadata processing.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 import argparse

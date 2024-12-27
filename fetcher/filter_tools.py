@@ -17,7 +17,7 @@ Functions:
 - build_exclusion_filters: Dynamically creates filters from exclusion files.
 - load_filters: Combines static filters with dynamically created filters.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 import os

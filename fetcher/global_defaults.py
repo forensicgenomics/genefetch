@@ -16,7 +16,7 @@ The vars:
    MAX_NUM, BATCH_SIZE, FETCH_PARALLEL, NUM_WORKERS, SOFT_RESTART, SEARCH_TERM
 are also settable as a command line argument when running fetch.py
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 from datetime import datetime

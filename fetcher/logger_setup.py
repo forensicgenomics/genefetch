@@ -15,7 +15,7 @@ This script configures a logger for the mitoFetch pipeline. The logger supports 
 
 The logger is used throughout the project to log events, warnings, and errors.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 import logging

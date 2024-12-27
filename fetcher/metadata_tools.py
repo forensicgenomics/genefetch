@@ -15,7 +15,7 @@ details, geographic origin, assembly information, and author details from provid
 record objects.
 Additional helper functions are provided for parsing dates and author names.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 import re

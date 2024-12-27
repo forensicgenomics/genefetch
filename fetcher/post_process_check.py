@@ -15,7 +15,7 @@ ids_list, metadata, and sequence files are maintained.
 
 Dependencies: pandas.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 import os

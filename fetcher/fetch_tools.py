@@ -22,7 +22,7 @@ Usage:
 - Import the functions into other scripts to streamline profile fetching and filtering.
 - Ensure NCBI API credentials (API key or email) are configured in the appropriate secret files.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 # helpers for pipeline

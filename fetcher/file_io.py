@@ -27,7 +27,7 @@ Usage:
 - Import functions as needed into other scripts for processing and file management.
 - Ensure appropriate paths and global constants are configured in `global_defaults`.
 
-Author: Noah Hurmer (aka. minimops) as part of the mitoTree Project.
+Author: Noah Hurmer as part of the mitoTree Project.
 """
 
 
