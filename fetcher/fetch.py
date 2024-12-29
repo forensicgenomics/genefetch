@@ -31,6 +31,7 @@ Author: Noah Hurmer as part of the mitoTree Project.
 
 import argparse
 import random
+from io import StringIO
 from urllib.error import HTTPError
 from Bio import SeqIO, Entrez
 import concurrent.futures
@@ -146,7 +147,45 @@ def rate_limited_fetch(*args, **kwargs):
     Returns:
         object: Result of the Entrez.efetch API call.
     """
-    return rate_limited_call(Entrez.efetch, logger=None, *args, **kwargs)
+    return rate_limited_call(Entrez.efetch, logger=logger, *args, **kwargs)
+
+
+# moved here to keep rate limit fetch in one spot
+def pubmed_api_fetch(pubmed_id):
+    """
+    Fetch metadata from PubMed for a given PubMed ID.
+
+    Args:
+        pubmed_id (str): The PubMed ID.
+
+    Returns:
+        object: Result of the Entrez.efetch API call for PubMed metadata.
+    """
+    pubmed_handle = rate_limited_call(Entrez.esummary, logger=logger, db="pubmed", id=pubmed_id)
+    pub_med_record = Entrez.read(pubmed_handle)
+    pubmed_handle.close()
+
+    return pub_med_record
+
+
+def fasta_fetch(record_id):
+    """
+    Fetch Sequence via fasta from nucleotide db.
+
+    Args:
+        record_id (str): The accession Number
+
+    Returns:
+        object: Result of the Entrez.efetch API call for Fasta Sequence.
+    """
+    logger.info(f"Downloading FASTA from db for ID: {record_id}")
+    fasta_handle = rate_limited_call(Entrez.efetch, logger=logger, db="nucleotide", id=record_id,
+                               rettype="fasta", retmode="text")
+    fasta_sequence = fasta_handle.read()
+    fasta_handle.close()
+
+    return fasta_sequence
+
 
 #######
 
@@ -182,24 +221,6 @@ def get_metadata(record):
     return metadata
 
 
-# moved here to keep rate limit fetch in one spot
-def pubmed_api_fetch(pubmed_id):
-    """
-    Fetch metadata from PubMed for a given PubMed ID.
-
-    Args:
-        pubmed_id (str): The PubMed ID.
-
-    Returns:
-        object: Result of the Entrez.efetch API call for PubMed metadata.
-    """
-    pubmed_handle = rate_limited_call(Entrez.esummary, logger=logger, db="pubmed", id=pubmed_id)
-    pub_med_record = Entrez.read(pubmed_handle)
-    pubmed_handle.close()
-
-    return pub_med_record
-
-
 def process_entry(acc_id):
     """
     Main processing function of a single accession ID.
@@ -222,6 +243,10 @@ def process_entry(acc_id):
 
         # start_time_proc = time.time()
 
+        # we need to catch weird only 'N' Sequences
+        # and replace them with fasta fetched sequences before (!) filtering
+        record = ensure_correct_seq(record)
+
         # qc of seq
         rem_reason = apply_filters(record)
         if rem_reason:
@@ -229,14 +254,14 @@ def process_entry(acc_id):
 
         metadata = get_metadata(record)
 
-        write_seq_as_fasta(record, logger)
+        write_seq_as_fasta(record)
 
         # print(f"Processing {acc_id} took {time.time() - start_time_proc} seconds.")
 
         return True, acc_id, metadata
 
     except Exception as e:
-        logger.error(f"Error processing entry for ID {acc_id}: {e}")
+        logger.error(f"Error processing entry for ID {acc_id}: {e} ; skipping.")
         # necessary to keep `future.result()` iterable
         return []
 
@@ -371,6 +396,31 @@ def apply_filters(record):
         logger.warning(f"Sequence ID {record.id} removed: {remove_reason}.")
         return remove_reason
     return False
+
+
+def ensure_correct_seq(record):
+    """
+    Checks if `record.seq` is malformed.
+    If so, refetches sequence via fasta from nucleotide db and replaces record's sequence.
+
+    Args:
+        record (SeqRecord): The GenBank record.
+
+    Returns:
+        record (SeqRecord): The GenBank record with possibly replaced sequence.
+    """
+    if record.seq.__class__.__name__ == "UnknownSeq" or record.seq.count("N") == len(record.seq):
+        fasta_str = fasta_fetch(record.id)
+        record_io = StringIO(fasta_str)
+        fetched_record = SeqIO.read(record_io, "fasta")
+        record_io.close()
+        if fetched_record is None:
+            logger.error(f"Could not fetch FASTA for {record.id}.")
+            raise ValueError(f"No clean Sequence found for {record.id}.")
+        # replace old seq with fasta fetched one
+        record.seq = fetched_record.seq
+
+    return record
 
 
 def process_profiles(id_list:list, batch_size:int, parallel:bool, NUM_WORKERS):

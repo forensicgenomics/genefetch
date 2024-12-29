@@ -93,8 +93,8 @@ CURRENT_PROCESSED_IDS_FILE = os.path.join(PROCESSED_IDS_DIR, f"processed_ids_{TI
 # adjust / delete / append these filter list entries as needed
 FILTERS = [
     {
-        'description': '<16500',
-        'fun': lambda record: len(record.seq) < 16500
+        'description': '<16519',
+        'fun': lambda record: len(record.seq) < 16519
     },
     {
         'description': '>30 N/n',
