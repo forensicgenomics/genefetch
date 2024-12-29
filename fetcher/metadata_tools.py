@@ -162,6 +162,9 @@ def get_assembly_info(record, logger=None):#
         except KeyError:
             pass
 
+    except KeyError:
+        pass
+
     except Exception as e:
         if logger:
             logger.error(f"Error fetching assembly info for ID {record.id}: {e}")
