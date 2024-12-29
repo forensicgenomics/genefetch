@@ -48,10 +48,10 @@ TIMESTAMP = RUN_TIME.strftime("%d_%m_%Y_%H_%M_%S")
 #
 # term to eSearch the ncbi database with
 # see the ncbi nuccore docu on how to adjust this
-SEARCH_TERM = "mitochondrion complete genome AND Homo Sapiens[Organism] AND 16500:99999999[SLEN] NOT Homo sapiens neanderthalensis"
+SEARCH_TERM = "mitochondrion[filter] AND Homo Sapiens[Organism] AND 16500:99999999[SLEN] NOT Homo sapiens neanderthalensis"
 # whether to use threading to fetch in parallel and with how many threads
 # this speeds up the fetching by a lot as the Entrez response can be rather slow
-FETCH_PARALLEL = True
+FETCH_PARALLEL = False
 NUM_WORKERS = 16
 # how many profiles to fetch
 MAX_NUM = 500
