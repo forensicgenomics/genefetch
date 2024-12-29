@@ -411,7 +411,7 @@ def soft_restart(id_list, MAX_NUM, SEARCH_TERM):
 
         if len(id_list) < MAX_NUM:
             # fill up to MAX_NUM number to process
-            max_num = len(prev_processed) + (MAX_NUM - len(id_list))
+            max_num = MAX_NUM + (MAX_NUM - len(id_list))
             logger.info(f"Some or all fetches already in the processed file. Raising up to MAX_NUM new ones and refetching.")
             if max_num > LIMIT_NUM:
                 logger.error("Achieved maximum size for automatic size increase with soft restarts.")
