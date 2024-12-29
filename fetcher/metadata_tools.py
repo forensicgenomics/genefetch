@@ -143,13 +143,22 @@ def get_assembly_info(record, logger=None):#
     assembly_info = {}
 
     try:
+        struc_comment = record.annotations['structured_comment']
+        if "Assembly-Data" in struc_comment.keys():
+            asm_dict = struc_comment["Assembly-Data"]
+        elif "Genome-Assembly-Data" in struc_comment.keys():
+            asm_dict = struc_comment["Genome-Assembly-Data"]
+        else:
+            # TODO are there yet more differing naming schemes?
+            raise KeyError
+
         try:
-            assembly_info["asm_method"] = record.annotations['structured_comment']['Assembly-Data']['Assembly Method']
-        except KeyError as e:
+            assembly_info["asm_method"] = asm_dict['Assembly Method']
+        except KeyError:
             pass
 
         try:
-            assembly_info["seq_tech"] = record.annotations['structured_comment']['Assembly-Data']['Sequencing Technology']
+            assembly_info["seq_tech"] = asm_dict['Sequencing Technology']
         except KeyError:
             pass
 
