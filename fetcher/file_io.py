@@ -412,7 +412,7 @@ def clean_sequence(sequence):
     Returns:
         str: Cleaned sequence string.
     """
-    return sequence.replace('D', '-')
+    return str(sequence).replace('D', '-')
 
 
 def get_last_run_date(file_path=LAST_RUN_PATH, logger=None):
