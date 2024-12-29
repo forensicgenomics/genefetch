@@ -53,21 +53,21 @@ You can use genefetch as a command-line tool or integrate it into a larger pipel
 Run the fetcher with customizable options:
 
 ```bash
-python run_fetcher.py
-  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]"
-  --max-num 1000
-  --batch-size 100
-  --fetch-parallel
-  --num-workers 20
+python run_fetcher.py \
+  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]" \
+  --max-num 1000 \
+  --batch-size 100 \
+  --fetch-parallel \
+  --num-workers 20 \
   --soft-restart
 ```
 
 or as a module:   
 
 ```bash
-python -m fetcher.main
-  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]"
-  --max-num 1000
+python -m fetcher.main \
+  --search-term "mitochondrion complete genome AND Homo Sapiens[Organism]" \
+  --max-num 1000 \
   ...
 ```
 
@@ -113,7 +113,7 @@ Filters for these will be created dynamically.
 
 ### **Project Structure**
 ```
-mitofetch/
+genefetch/
 │
 ├── fetcher/
 │   ├── __init__.py
@@ -131,7 +131,7 @@ mitofetch/
 │ 
 │── data/
 │   ├── logs/                   # Logs for debugging and auditing
-│   ├── processed_ids/          # Processed ID lists
+│   ├── processed_ids/          # Processed ID lists for soft restarting
 │   ├── seqs/                   # Sequence FASTA files
 │   ├── ids_list.txt            # Fetched profile accession numbers
 │   ├── removed_ids.csv         # Filtered out profiles
