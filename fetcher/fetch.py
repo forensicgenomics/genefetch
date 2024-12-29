@@ -101,6 +101,11 @@ def rate_limited_call(api_call, *args, **kwargs):
     Returns:
         object: The result of the API call.
     """
+
+    def wait_helper(attempt_num):
+        sleep_time = 2 ** attempt_num + random.uniform(0, 1)
+        time.sleep(sleep_time)
+
     with rate_limit_semaphore:
         time.sleep(1 / MAX_CALLS_PER_SECOND)
         for attempt in range(3):
@@ -110,16 +115,22 @@ def rate_limited_call(api_call, *args, **kwargs):
                 if e.code == 429:  # Too Many Requests
                     if logger:
                         logger.warning(f"Too many requests, retrying. Attempt {attempt + 1}/3.")
-                    sleep_time = 2 ** attempt + random.uniform(0, 1)
-                    time.sleep(sleep_time)
+                    wait_helper(attempt)
                 else:
                     if logger:
                         logger.error(f"HTTP error: {e}")
                     raise
             except Exception as e:
-                if logger:
-                    logger.error(f"Unexpected error: {e}")
-                raise
+                if "Remote end closed connection without response" in str(e): # this error comes up sometimes and a retry fixes it
+                    if logger:
+                        logger.warning(f"Remote end closed connection. Retrying. Attempt {attempt + 1}/3.")
+                        # TODO testing
+                        logger.warning(f"Specific Error: {e.__class__.__name__}")
+                    wait_helper(attempt)
+                else:
+                    if logger:
+                        logger.error(f"Unexpected error: {e}")
+                    raise
         if logger:
             logger.error("Max retries exceeded.")
         raise Exception("Max retries exceeded.")
