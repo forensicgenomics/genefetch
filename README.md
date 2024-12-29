@@ -72,14 +72,14 @@ python -m fetcher.main \
 ```
 
 ### **Options**
-| Argument         | Description                                                |
-|------------------|------------------------------------------------------------|
-| `--max-num`      | Maximum number of profiles to fetch.                      |
-| `--batch-size`   | Number of profiles to process in each batch.              |
-| `--fetch-parallel` | Enable parallel fetching.                               |
-| `--num-workers`  | Number of workers for parallel fetching.                  |
-| `--soft-restart` | Restart with previously processed profiles.               |
-| `--search-term`  | NCBI search term for fetching mitochondrial sequences.    |
+| Argument         | Description                                  |
+|------------------|----------------------------------------------|
+| `--max-num`      | Maximum number of profiles to fetch.         |
+| `--batch-size`   | Number of profiles to process before saving. |
+| `--fetch-parallel` | Enable parallel fetching.                    |
+| `--num-workers`  | Number of workers for parallel fetching.     |
+| `--soft-restart` | Restart with previously processed profiles.  |
+| `--search-term`  | NCBI search term for fetching profiles.      |
 
 Default values are stored in `genefetch/global_defaults.py`.
 
