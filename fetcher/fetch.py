@@ -525,7 +525,7 @@ def main():
     full_id_list = fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger)
     post_process_check(logger=logger, ids_list=full_id_list)
     cleanup_old_files(PROCESSED_IDS_DIR, 3, logger)
-    cleanup_old_files(LOG_DIR, 6, logger)
+    cleanup_old_files(LOG_DIR, 10, logger)
 
     return 0
 
