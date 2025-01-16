@@ -120,10 +120,12 @@ def rate_limited_call(api_call, *args, **kwargs):
                     if logger:
                         logger.warning(f"Too many requests, retrying. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
-                if e.code == 400:  # Bad Request
+                    continue
+                elif e.code == 400:  # Bad Request
                     if logger:
                         logger.warning(f"Bad Request. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
+                    continue
                 else:
                     if logger:
                         logger.error(f"HTTP error: {e}")
@@ -135,12 +137,14 @@ def rate_limited_call(api_call, *args, **kwargs):
                         # TODO testing
                         logger.warning(f"Specific Error: {e.__class__.__name__}")
                     wait_helper(attempt)
+                    continue
                 if "urlopen error [Errno 101] Network is unreachable" in str(e):  # this error comes up sometimes and a retry fixes it
                     if logger:
                         logger.warning(f"Network is unreachable urlopen error. Retrying. Attempt {attempt + 1}/3.")
                         # TODO testing
                         logger.warning(f"Specific Error: {e.__class__.__name__}")
                     wait_helper(attempt)
+                    continue
                 else:
                     if logger:
                         logger.error(f"Unexpected error: {e}")
