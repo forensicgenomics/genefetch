@@ -33,7 +33,6 @@ import argparse
 import random
 import warnings
 from io import StringIO
-from logging import warning
 from urllib.error import HTTPError
 from Bio import SeqIO, Entrez
 import concurrent.futures
@@ -77,6 +76,7 @@ from .post_process_check import main as post_process_check
 
 ####
 # global vars
+VERBOSE = False
 
 # set up logging
 logger = get_logger()
@@ -91,6 +91,11 @@ FILTERS = load_filters()
 set_entrez_globals()
 MAX_CALLS_PER_SECOND = set_entrez_rate()
 rate_limit_semaphore = threading.Semaphore(MAX_CALLS_PER_SECOND)
+
+def wait_helper(attempt_num):
+    sleep_time = 2 ** attempt_num + random.uniform(0, 1)
+    time.sleep(sleep_time)
+
 @sleep_and_retry
 @limits(calls=MAX_CALLS_PER_SECOND, period=1)
 def rate_limited_call(api_call, *args, **kwargs):
@@ -105,10 +110,6 @@ def rate_limited_call(api_call, *args, **kwargs):
         object: The result of the API call.
     """
 
-    def wait_helper(attempt_num):
-        sleep_time = 2 ** attempt_num + random.uniform(0, 1)
-        time.sleep(sleep_time)
-
     with rate_limit_semaphore:
         time.sleep(1 / MAX_CALLS_PER_SECOND)
         for attempt in range(3):
@@ -119,6 +120,10 @@ def rate_limited_call(api_call, *args, **kwargs):
                     if logger:
                         logger.warning(f"Too many requests, retrying. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
+                if e.code == 400:  # Bad Request
+                    if logger:
+                        logger.warning(f"Bad Request. Attempt {attempt + 1}/3.")
+                    wait_helper(attempt)
                 else:
                     if logger:
                         logger.error(f"HTTP error: {e}")
@@ -127,6 +132,12 @@ def rate_limited_call(api_call, *args, **kwargs):
                 if "Remote end closed connection without response" in str(e): # this error comes up sometimes and a retry fixes it
                     if logger:
                         logger.warning(f"Remote end closed connection. Retrying. Attempt {attempt + 1}/3.")
+                        # TODO testing
+                        logger.warning(f"Specific Error: {e.__class__.__name__}")
+                    wait_helper(attempt)
+                if "urlopen error [Errno 101] Network is unreachable" in str(e):  # this error comes up sometimes and a retry fixes it
+                    if logger:
+                        logger.warning(f"Network is unreachable urlopen error. Retrying. Attempt {attempt + 1}/3.")
                         # TODO testing
                         logger.warning(f"Specific Error: {e.__class__.__name__}")
                     wait_helper(attempt)
@@ -180,7 +191,8 @@ def fasta_fetch(record_id):
     Returns:
         object: Result of the Entrez.efetch API call for Fasta Sequence.
     """
-    logger.info(f"Downloading FASTA from db for ID: {record_id}")
+    if logger:
+        logger.info(f"Downloading FASTA from db for ID: {record_id}")
     fasta_handle = rate_limited_call(Entrez.efetch, logger=logger, db="nucleotide", id=record_id,
                                rettype="fasta", retmode="text")
     fasta_sequence = fasta_handle.read()
@@ -236,12 +248,14 @@ def process_entry(acc_id):
     """
     try:
         logger.debug(f"Fetching information for ID: {acc_id}")
-        print(f"Fetching information for ID: {acc_id}")
+        if VERBOSE:
+            print(f"Fetching information for ID: {acc_id}")
         start_time_fetch = time.time()
         handle = rate_limited_fetch(db="nucleotide", id=acc_id, rettype="gb", retmode="text")
         record = SeqIO.read(handle, "genbank")
         handle.close()
-        print(f"Fetching {acc_id} took {time.time() - start_time_fetch} seconds.")
+        if VERBOSE:
+            print(f"Fetching {acc_id} took {time.time() - start_time_fetch} seconds.")
 
         # start_time_proc = time.time()
 
@@ -359,7 +373,8 @@ def process_entries_parallel(id_list: list, batch_size: int, NUM_WORKERS):
                         logger.info(f"Saving progress after {batch_size} Profiles, {index + 1} out of {len(id_list)}.")
                         start_time_writing = time.time()
                         save_batch_info(index, filtered_entries, removed, metas, logger=logger)
-                        print(f"Writing took {time.time() - start_time_writing} seconds.")
+                        if VERBOSE:
+                            print(f"Writing took {time.time() - start_time_writing} seconds.")
                     except Exception as e:
                         logger.critical(f"Fatal error during batch writing: {e}")
                         raise
@@ -412,17 +427,64 @@ def ensure_correct_seq(record):
         record (SeqRecord): The GenBank record with possibly replaced sequence.
     """
     if record.seq.__class__.__name__ == "UnknownSeq" or record.seq.count("N") == len(record.seq):
-        fasta_str = fasta_fetch(record.id)
-        record_io = StringIO(fasta_str)
-        fetched_record = SeqIO.read(record_io, "fasta")
-        record_io.close()
-        if fetched_record is None:
-            logger.error(f"Could not fetch FASTA for {record.id}.")
-            raise ValueError(f"No clean Sequence found for {record.id}.")
+        # recall up to n times if sequence is not valid
+        try:
+            fetched_record = find_clean_seq_fetcher(record)
+
+            if fetched_record is None:
+                raise ValueError("No clean sequence found.")
+
+        except Exception as e:
+            if logger:
+                logger.error(f"Could not find clean FASTA for {record.id}.")
+            raise ValueError(f"Error refetching Sequence for {record.id} : {e}.")
+
         # replace old seq with fasta fetched one
         record.seq = fetched_record.seq
 
     return record
+
+
+# This was added on 25/01/16 because apparently on some pcs, running StringIO read operations
+# while saving the batch info causes an incomplete read here.
+# this is probably not handled well. For one because of the length of code necessary and secondly,
+# because this essentially nests with the retry funion of `rate_limited_call`. So essentially,
+# a 9x wait helper run through would be possible, which is a lot of time!
+def find_clean_seq_fetcher(record):
+    """
+    Wrapper to refetch and read the sequence of a record as a fasta.
+    Excepts and retries, if:
+        - it fetches a seq of 'unknownSeq' class
+        - reading the sequence via StringIO throws an error
+
+    Args:
+        record (SeqRecord): The GenBank record.
+
+    Returns:
+        record (Seq | String): The refetched Sequence if it finds a clean one within retries.
+    """
+    for attempt in range(3):
+        try:
+            fasta_str = fasta_fetch(record.id)
+            if fasta_str.__class__.__name__ == "UnknownSeq":
+                if logger:
+                    logger.warning(f"Refetched Sequence of type `UnknownSeq`, retrying."
+                                   f" Attempt {attempt + 1}/3.")
+                wait_helper(attempt)
+                continue
+            record_io = StringIO(fasta_str)
+            fetched_record = SeqIO.read(record_io, "fasta")
+            record_io.close()
+
+            return fetched_record
+
+        except Exception as e:
+            if logger:
+                logger.warning(f"Error refetching Sequence: {e} ; retrying. Attempt {attempt + 1}/3.")
+            wait_helper(attempt)
+            continue
+
+    raise ValueError(f"Max retries.")
 
 
 def process_profiles(id_list:list, batch_size:int, parallel:bool, NUM_WORKERS):
@@ -489,6 +551,7 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for parallel fetching.")
     parser.add_argument("--soft-restart", action="store_true", default=SOFT_RESTART, help="Restart softly with previously processed profiles.")
     parser.add_argument("--search-term", type=str, default=SEARCH_TERM, help="NCBI search term.")
+
     return parser.parse_args()
 
 
