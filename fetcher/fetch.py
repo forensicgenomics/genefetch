@@ -525,7 +525,10 @@ def soft_restart(id_list, MAX_NUM, SEARCH_TERM):
 
         if len(id_list) < MAX_NUM:
             # fill up to MAX_NUM number to process
-            max_num = MAX_NUM + (MAX_NUM - len(id_list))
+            # This was edited on 24/01/16 to not return 0 new profile sto fetch, when you make consecutive
+            # max nums smaller. However, this is noted here, as i had to 'fix' this before to the previous version.
+            # So perhaps this version now will again bring back the previous problem.
+            max_num = len(prev_processed) + (MAX_NUM - len(id_list))
             logger.info(f"Some or all fetches already in the processed file. Raising up to {MAX_NUM} new ones and refetching.")
             if max_num > LIMIT_NUM:
                 # edited on 25/01/16 to no longer throw an error, but to use LIMIT_NUM instead
