@@ -488,6 +488,14 @@ def parse_args():
     return parser.parse_args()
 
 
+def check_valid_inputs(arg_dict):
+    # check we dont exceed limit number of fetches
+    if arg_dict["max_num"] > LIMIT_NUM or arg_dict["max_num"] < 1:
+        raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}]."
+                         f"Choose a number of Profiles to fetch with in those bounds.")
+    # TODO possibly add more checking other values here
+
+
 def main():
     # CLI arguments
     args = parse_args()
@@ -498,6 +506,9 @@ def main():
     NUM_WORKERS = args.num_workers
     SOFT_RESTART = args.soft_restart
     SEARCH_TERM = args.search_term
+
+    check_valid_inputs({"max_num": MAX_NUM, "batch_size": BATCH_SIZE, "num_workers":NUM_WORKERS,
+                        "search_term": SEARCH_TERM})
 
     start_time = time.time()
     id_list = fetch_profile_accs(SEARCH_TERM, max_num=MAX_NUM, logger=logger)
