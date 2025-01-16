@@ -462,10 +462,15 @@ def soft_restart(id_list, MAX_NUM, SEARCH_TERM):
         if len(id_list) < MAX_NUM:
             # fill up to MAX_NUM number to process
             max_num = MAX_NUM + (MAX_NUM - len(id_list))
-            logger.info(f"Some or all fetches already in the processed file. Raising up to MAX_NUM new ones and refetching.")
+            logger.info(f"Some or all fetches already in the processed file. Raising up to {MAX_NUM} new ones and refetching.")
             if max_num > LIMIT_NUM:
-                logger.error("Achieved maximum size for automatic size increase with soft restarts.")
-                raise ValueError(f"max_num exceeds limit.")
+                # edited on 25/01/16 to no longer throw an error, but to use LIMIT_NUM instead
+                logger.warning("Achieved maximum size for automatic size increase with soft restarts.")
+                logger.warning("This may indicate unwanted use of --soft-restart ?")
+                logger.warning(f"Changing to fetch up to {LIMIT_NUM} profiles only.")
+
+                max_num = LIMIT_NUM
+
             id_list = filter_unprocessed_ids(fetch_profile_accs(SEARCH_TERM, max_num=max_num, logger=logger),
                                              prev_processed, logger)
 
