@@ -31,7 +31,9 @@ Author: Noah Hurmer as part of the mitoTree Project.
 
 import argparse
 import random
+import warnings
 from io import StringIO
+from logging import warning
 from urllib.error import HTTPError
 from Bio import SeqIO, Entrez
 import concurrent.futures
@@ -465,8 +467,10 @@ def soft_restart(id_list, MAX_NUM, SEARCH_TERM):
             logger.info(f"Some or all fetches already in the processed file. Raising up to {MAX_NUM} new ones and refetching.")
             if max_num > LIMIT_NUM:
                 # edited on 25/01/16 to no longer throw an error, but to use LIMIT_NUM instead
-                logger.warning("Achieved maximum size for automatic size increase with soft restarts.")
-                logger.warning("This may indicate unwanted use of --soft-restart ?")
+                limit_msg = ("Achieved maximum size for automatic size increase with soft restarts.\n"
+                             "This may indicate unwanted use of --soft-restart ?")
+                logger.warning(limit_msg)
+                warnings.warn(limit_msg)
                 logger.warning(f"Changing to fetch up to {LIMIT_NUM} profiles only.")
 
                 max_num = LIMIT_NUM
@@ -491,7 +495,7 @@ def parse_args():
 def check_valid_inputs(arg_dict):
     # check we dont exceed limit number of fetches
     if arg_dict["max_num"] > LIMIT_NUM or arg_dict["max_num"] < 1:
-        raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}]."
+        raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}].\n"
                          f"Choose a number of Profiles to fetch with in those bounds.")
     # TODO possibly add more checking other values here
 
