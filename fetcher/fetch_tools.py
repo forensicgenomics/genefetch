@@ -154,17 +154,17 @@ def filter_changed_profiles(accession_list, local_versions, local_removed_versio
         fasta_check = os.path.exists(f"{SEQS_DIR}/{accession.split('.')[0]}.fasta") if CHECK_FOR_FASTA else True
         if version <= local_version and fasta_check:
             if logger:
-                logger.info(f"Accession ID {accession} already downloaded and is up to date.")
+                logger.debug(f"Accession ID {accession} already downloaded and is up to date.")
             continue
         # also remove if that version is in the removed list
         removed_version = local_removed_versions.get(accession_num, 0) if local_removed_versions else 0
         if version <= removed_version:
             if logger:
-                logger.info(f"Accession ID {accession} of current version previously removed.")
+                logger.debug(f"Accession ID {accession} of current version previously removed.")
             continue
         if local_version != 0 and version > local_version:
             if logger:
-                logger.info(f"Accession ID {accession} is an update of a previous version.")
+                logger.debug(f"Accession ID {accession} is an update of a previous version.")
 
         filtered_list.append(accession)
 

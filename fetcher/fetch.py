@@ -594,7 +594,7 @@ def main():
     # filter out profiles that do not need to be fetched, as their current version is up to date
     local_versions = load_local_versions(logger)
     removed_local = load_removed_versions(logger)
-    id_list = filter_changed_profiles(id_list, local_versions, removed_local)
+    id_list = filter_changed_profiles(id_list, local_versions, removed_local, logger=logger)
 
     # readd profiles, whose metadata has been changed since the last run
     last_run_date = get_last_run_date(logger=logger)

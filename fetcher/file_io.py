@@ -216,7 +216,7 @@ def load_local_versions(logger=None):
             accession, version = line.strip().split('.')
             local_versions[accession] = int(version)
     if logger:
-        logger.info(f"Loaded {len(local_versions)} local versions.")
+        logger.info(f"Loaded {len(local_versions)} local non-filtered-out versions.")
     return local_versions
 
 
@@ -526,7 +526,10 @@ def post_process_metadata(logger=None):
         if best_row['index'] != group['index'].max():
             if logger:
                 logger.warning(f"Highest version for ID {best_row['id']} ({best_row['accession']}) "
-                               f"is not the most recently added row."
+                               f"is not the most recently added row.\n"
+                               f"Other versions present:\n"
+                               f"Index  -  Accession\n"
+                               f"{group['accession']}\n"
                                f"Keeping highest version anyway.")
 
         # check highest version row has the most filled fields
@@ -535,7 +538,7 @@ def post_process_metadata(logger=None):
                 if logger:
                     logger.warning(f"Row {row['index']} with ID {row['id']} and version {row['version']} "
                                    f"has more filled fields than the highest version"
-                                   f" ({best_row['accession']} @ {best_row['index']}).")
+                                   f" ({best_row['accession']} @ row {best_row['index']}).")
 
         # split up any tied highest versions (same ID, same version) by most recently added
         max_version_rows = group[group['version'] == best_row['version']]

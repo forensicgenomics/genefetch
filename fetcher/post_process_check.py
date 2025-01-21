@@ -65,13 +65,20 @@ def check_removed_and_ids_list(ids_list, logger=None):
         logger (logging.Logger, optional): Logger instance for logging errors and warnings.
     """
     try:
-        # load ids_list
-        ids_df = pd.read_csv(IDS_FILE, header=None, names=["accession"])
-        ids_accessions = set(ids_df['accession'])
-
-        # load removed_ids
-        removed_df = pd.read_csv(REMOVED_IDS_FILE)
-        removed_accessions = set(removed_df['accession'])
+        ids_accessions = set()
+        removed_accessions = set()
+        try:
+            # load ids_list
+            ids_df = pd.read_csv(IDS_FILE, header=None, names=["accession"])
+            ids_accessions = set(ids_df['accession'])
+        except FileNotFoundError:
+            logger.warning(f"No Ids file ('{IDS_FILE}') found. Ignoring.")
+        try:
+            # load removed_ids
+            removed_df = pd.read_csv(REMOVED_IDS_FILE)
+            removed_accessions = set(removed_df['accession'])
+        except FileNotFoundError:
+            logger.warning(f"No Removed Ids file ('{REMOVED_IDS_FILE}') found. Ignoring.")
 
         # combine
         combined_accessions = set(ids_accessions) | removed_accessions
@@ -84,10 +91,10 @@ def check_removed_and_ids_list(ids_list, logger=None):
         n = 5
         if missing_in_combined:
             logger.warning(
-                f"{len(missing_in_combined)} accessions missing in combined list. Showing first {n}: {list(missing_in_combined)[:n]}")
+                f"{len(missing_in_combined)} accessions missing in combined list relative to the search query. Showing first {n}: {list(missing_in_combined)[:n]}")
         if extra_in_combined:
             logger.warning(
-                f"{len(extra_in_combined)} extra accessions in combined list. Showing first {n}: {list(extra_in_combined)[:n]}")
+                f"{len(extra_in_combined)} extra accessions in combined list relative to the search query. Showing first {n}: {list(extra_in_combined)[:n]}")
 
     except Exception as e:
         logger.error(f"Error checking ids_list and removed_ids: {e}")
@@ -117,7 +124,8 @@ def check_metadata_and_ids_list(logger=None):
         else:
             missing = ids_accessions - metadata_accessions
             extra = metadata_accessions - ids_accessions
-            msg = f"Mismatch between ids_list and metadata accessions.\nMissing: {missing}\nExtra: {extra}"
+            msg = (f"Mismatch between ids_list and metadata accessions.\n"
+                   f"Missing in metadata: {missing}\nExtra in metadata: {extra}")
             logger.warning(msg) if logger else print(msg)
 
     except Exception as e:
