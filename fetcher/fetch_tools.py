@@ -230,7 +230,9 @@ def fetch_profile_accs(search_term, max_num=None, n_days=None, logger=None):
         if logger:
             logger.info(f"Found {record.get('Count')} matches.")
         return record['IdList']
+
     except Exception as e:
         if logger:
             logger.error(f"Error fetching IDs: {e}")
-        return []
+        raise e
+        # return []

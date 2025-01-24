@@ -173,6 +173,8 @@ def main(logger=None, ids_list=None):
     check_duplicates_in_file(REMOVED_IDS_FILE, columns="accession", logger=logger)
     if ids_list:
         check_removed_and_ids_list(ids_list, logger=logger)
+    else:
+        logger.warning("No non-empty comparison ID list present. Skipping this check.")
     check_metadata_and_ids_list(logger=logger)
     check_seqs_directory(logger=logger)
 
