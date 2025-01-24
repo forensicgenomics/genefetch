@@ -553,3 +553,156 @@ def post_process_metadata(logger=None):
     final_df.to_csv(METADATA_FILE, index=False)
     if logger:
         logger.info(f"Post-processing complete. Saved {len(final_df) - 1} rows to '{METADATA_FILE}'.")
+
+
+def clean_profiles_from_data(ids_list, logger=None):
+    """
+    Removes any profiles (and associated data) that are NOT in the given `ids_list`.
+
+    This function:
+      1. Updates the local versions file (`IDS_FILE`) to keep only IDs that are in `ids_list`.
+      2. Updates `REMOVED_IDS_FILE` (removed.csv) to keep only rows whose 'accession' is in `ids_list`.
+      3. Updates `METADATA_FILE` to keep only rows whose 'accession' is in `ids_list`.
+      4. Removes FASTA files from `SEQS_DIR` if their root name is not in `ids_list`.
+         (For an accession like "AB123456.1", the FASTA file is "AB123456.fasta".)
+
+    Args:
+        ids_list (list): List of *full* accessions (e.g. ["AB123456.1", "XYZ789123.2"]) that should remain.
+        logger (logging.Logger, optional): Logger for progress/error messages. Defaults to None.
+
+    Returns:
+        int: Returns 0 upon successful cleanup.
+    """
+
+    keep_set = set(ids_list)
+
+    # remove from IDS_FILE
+    if os.path.exists(IDS_FILE):
+        try:
+            with open(IDS_FILE, "r") as f:
+                lines = [line.strip() for line in f if line.strip()]
+
+            before_count = len(lines)
+            kept_lines = [ln for ln in lines if ln in keep_set]
+            after_count = len(kept_lines)
+
+            if after_count < before_count:
+                with open(IDS_FILE, "w") as f:
+                    for ln in kept_lines:
+                        f.write(ln + "\n")
+                if logger:
+                    logger.info(
+                        f"Removed {before_count - after_count} entries from {IDS_FILE} "
+                        f"that are not in the provided list."
+                    )
+            else:
+                if logger:
+                    logger.info(
+                        f"No entries removed from {IDS_FILE}; all were in the provided list."
+                    )
+        except Exception as e:
+            if logger:
+                logger.error(f"Error updating {IDS_FILE}: {e}")
+            else:
+                print(f"Error updating {IDS_FILE}: {e}")
+
+    # REMOVED_IDS_FILE
+    if os.path.exists(REMOVED_IDS_FILE):
+        try:
+            df_removed = pd.read_csv(REMOVED_IDS_FILE)
+            if "accession" in df_removed.columns:
+                before_count = len(df_removed)
+                df_removed = df_removed[df_removed["accession"].isin(keep_set)]
+                after_count = len(df_removed)
+                if after_count < before_count:
+                    df_removed.to_csv(REMOVED_IDS_FILE, index=False)
+                    if logger:
+                        logger.info(
+                            f"Removed {before_count - after_count} rows from {REMOVED_IDS_FILE} "
+                            f"that are not in the provided list."
+                        )
+                else:
+                    if logger:
+                        logger.info(
+                            f"No rows removed from {REMOVED_IDS_FILE}; "
+                            f"all were in the provided list."
+                        )
+            else:
+                if logger:
+                    logger.warning(
+                        f"No 'accession' column in {REMOVED_IDS_FILE}; skipping removal."
+                    )
+        except Exception as e:
+            if logger:
+                logger.error(f"Error updating {REMOVED_IDS_FILE}: {e}")
+            else:
+                print(f"Error updating {REMOVED_IDS_FILE}: {e}")
+
+    # METADATA_FILE
+    if os.path.exists(METADATA_FILE):
+        try:
+            df_meta = pd.read_csv(METADATA_FILE)
+            if "accession" in df_meta.columns:
+                before_count = len(df_meta)
+                df_meta = df_meta[df_meta["accession"].isin(keep_set)]
+                after_count = len(df_meta)
+                if after_count < before_count:
+                    df_meta.to_csv(METADATA_FILE, index=False)
+                    if logger:
+                        logger.info(
+                            f"Removed {before_count - after_count} rows from {METADATA_FILE} "
+                            f"that are not in the provided list."
+                        )
+                else:
+                    if logger:
+                        logger.info(
+                            f"No rows removed from {METADATA_FILE}; "
+                            f"all were in the provided list."
+                        )
+            else:
+                if logger:
+                    logger.warning(
+                        f"No 'accession' column in {METADATA_FILE}; skipping removal."
+                    )
+        except Exception as e:
+            if logger:
+                logger.error(f"Error updating {METADATA_FILE}: {e}")
+            else:
+                print(f"Error updating {METADATA_FILE}: {e}")
+
+    # remove FASTA files in SEQS_DIR
+    if os.path.exists(SEQS_DIR):
+        try:
+            valid_roots = set(acc.split(".")[0] for acc in keep_set)
+
+            all_files = os.listdir(SEQS_DIR)
+            fasta_files = [f for f in all_files if f.lower().endswith(".fasta")]
+
+            removed_count = 0
+            for fasta_name in fasta_files:
+                root_name = os.path.splitext(fasta_name)[0]  # e.g. "AB123456"
+                if root_name not in valid_roots:
+                    # remove
+                    full_path = os.path.join(SEQS_DIR, fasta_name)
+                    try:
+                        os.remove(full_path)
+                        removed_count += 1
+                        if logger:
+                            logger.debug(f"Removed FASTA file not in keep list: {full_path}")
+                    except Exception as e:
+                        if logger:
+                            logger.error(f"Error removing {full_path}: {e}")
+                        else:
+                            print(f"Error removing {full_path}: {e}")
+            if logger and removed_count > 0:
+                logger.info(
+                    f"Removed {removed_count} FASTA files from {SEQS_DIR} "
+                    f"that are not in the current query."
+                )
+        except Exception as e:
+            if logger:
+                logger.error(f"Error cleaning up FASTA files in {SEQS_DIR}: {e}")
+            else:
+                print(f"Error cleaning up FASTA files in {SEQS_DIR}: {e}")
+
+    return 0

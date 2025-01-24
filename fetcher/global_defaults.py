@@ -80,6 +80,8 @@ if not os.path.exists(PROCESSED_IDS_DIR):
     os.makedirs(PROCESSED_IDS_DIR)
 CURRENT_PROCESSED_IDS_FILE = os.path.join(PROCESSED_IDS_DIR, f"processed_ids_{TIMESTAMP}.txt")
 ####
+# flag to remove profile sequence, metadata etc, if not within current call fetch.
+CLEAN_DIR = False
 #################################################################################
 ####
 # filters which profiles to remove while fetching

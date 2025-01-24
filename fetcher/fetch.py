@@ -46,29 +46,31 @@ from .fetch_tools import (set_entrez_rate,
                          fetch_profile_accs,
                          readd_recently_modified_profiles)
 from .file_io import (save_batch_info,
-                     filter_unprocessed_ids,
-                     load_processed_ids,
-                     load_local_versions,
-                     load_removed_versions,
-                     cleanup_old_files,
-                     get_last_run_date,
-                     write_last_run_date,
-                     write_seq_as_fasta,
-                     post_process_metadata)
+                      filter_unprocessed_ids,
+                      load_processed_ids,
+                      load_local_versions,
+                      load_removed_versions,
+                      cleanup_old_files,
+                      get_last_run_date,
+                      write_last_run_date,
+                      write_seq_as_fasta,
+                      post_process_metadata,
+                      clean_profiles_from_data)
 from .metadata_tools import (get_pubmed_info,
                             get_assembly_info,
                             get_geo_info)
 from .global_defaults import (LIMIT_NUM,
-                             SEARCH_TERM,
-                             PROCESSED_IDS_DIR,
-                             LOG_DIR,
-                             RUN_TIME,
-                             NUM_WORKERS,
-                             MAX_NUM,
-                             BATCH_SIZE,
-                             SOFT_RESTART,
-                             FETCH_PARALLEL,
-                             METADATA_TEMPLATE)
+                              SEARCH_TERM,
+                              PROCESSED_IDS_DIR,
+                              LOG_DIR,
+                              RUN_TIME,
+                              NUM_WORKERS,
+                              MAX_NUM,
+                              BATCH_SIZE,
+                              SOFT_RESTART,
+                              FETCH_PARALLEL,
+                              METADATA_TEMPLATE,
+                              CLEAN_DIR)
 from .filter_tools import load_filters
 from .logger_setup import get_logger
 from .post_process_check import main as post_process_check
@@ -558,6 +560,8 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for parallel fetching.")
     parser.add_argument("--soft-restart", action="store_true", default=SOFT_RESTART, help="Restart softly with previously processed profiles.")
     parser.add_argument("--search-term", type=str, default=SEARCH_TERM, help="NCBI search term.")
+    parser.add_argument("--clean-dir", action="store_true", default=CLEAN_DIR, help="Set this flag to clean the output directory,"
+                                                                                    " removing profiles not within the current calls fetch.")
 
     return parser.parse_args()
 
@@ -580,6 +584,7 @@ def main():
     NUM_WORKERS = args.num_workers
     SOFT_RESTART = args.soft_restart
     SEARCH_TERM = args.search_term
+    CLEAN_DIR = args.clean_dir
 
     check_valid_inputs({"max_num": MAX_NUM, "batch_size": BATCH_SIZE, "num_workers":NUM_WORKERS,
                         "search_term": SEARCH_TERM})
@@ -625,8 +630,20 @@ def main():
     try:
         full_id_list = fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger)
     except Exception as e:
-        logger.error("Problem fetching full Accession List for Post process check. Continuing without.")
+        logger.error("Problem fetching full accession list for post-process check. Continuing without.")
         full_id_list = []
+
+    if CLEAN_DIR:
+        # TODO testing
+        full_id_list = ["KF040496.1"]
+
+        print("Cleaning data directory based on current query.")
+        logger.info(f"Cleaning data directory by removing any profile data not present in the current query with the "
+                   f"search-term: {SEARCH_TERM} and a max-num of {LIMIT_NUM}.")
+        if full_id_list:
+            clean_profiles_from_data(full_id_list, logger=logger)
+        else:
+            logger.error("Fetch query missing or empty, Cannot clean directory without successful ncbi query. Skipping.")
 
     post_process_check(logger=logger, ids_list=full_id_list)
     cleanup_old_files(PROCESSED_IDS_DIR, 3, logger)
