@@ -645,9 +645,6 @@ def main():
         full_id_list = []
 
     if CLEAN_DIR:
-        # TODO testing
-        # full_id_list = ["KF040496.1"]
-
         print("Cleaning data directory based on current query.")
         logger.info(f"Cleaning data directory by removing any profile data not present in the current query with the "
                    f"search-term: {SEARCH_TERM} and a max-num of {LIMIT_NUM}.")
