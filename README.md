@@ -72,14 +72,15 @@ python -m fetcher.main \
 ```
 
 ### **Options**
-| Argument         | Description                                  |
-|------------------|----------------------------------------------|
-| `--max-num`      | Maximum number of profiles to fetch.         |
-| `--batch-size`   | Number of profiles to process before saving. |
-| `--fetch-parallel` | Enable parallel fetching.                    |
-| `--num-workers`  | Number of workers for parallel fetching.     |
-| `--soft-restart` | Restart with previously processed profiles.  |
-| `--search-term`  | NCBI search term for fetching profiles.      |
+| Argument          | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+|-------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `--max-num`       | Maximum number of profiles to fetch.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `--batch-size`    | Number of profiles to process before saving.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `--fetch-parallel` | Enable parallel fetching.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `--num-workers`   | Number of workers for parallel fetching.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `--soft-restart`  | Restart with previously processed profiles.<br/>Use this if you are building upon the last run with the same search term and dont want to fetch all profiles at once.<br/>If set, all profiles of the previous fetched are not checked for updates!                                                                                                                                                                                                                          |
+| `--search-term`   | NCBI search term for fetching profiles.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `--clean-dir`     | Removes profile data from all files (ids_list / removed_ids / metadata / fasta_files) if they are not returned by the databank query with the current search parameters.<br/>As the `max-num` parameter, the `LIMIT_NUM` is used.<br/>Set this flag if you made a mistake with the last fetch search term for example and dont want to start over or manually remove them.<br/>Be careful though, as this can remove a lot of data if your current search term is incorrect! |
 
 Default values are stored in `genefetch/global_defaults.py`.
 
@@ -131,6 +132,7 @@ genefetch/
 │ 
 │── data/
 │   ├── logs/                   # Logs for debugging and auditing
+│       └── debug_info          # dditional files that may be useful for debugging
 │   ├── processed_ids/          # Processed ID lists for soft restarting
 │   ├── seqs/                   # Sequence FASTA files
 │   ├── ids_list.txt            # Fetched profile accession numbers
