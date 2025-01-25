@@ -32,6 +32,8 @@ Author: Noah Hurmer as part of the mitoTree Project.
 
 
 import os
+from email.generator import Generator
+
 import pandas as pd
 from datetime import date, datetime
 from Bio import SeqIO
@@ -39,12 +41,14 @@ from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 
 from .global_defaults import (CURRENT_PROCESSED_IDS_FILE,
-                             METADATA_FILE,
-                             LAST_RUN_PATH,
-                             SEQS_DIR,
-                             REMOVED_IDS_FILE,
-                             IDS_FILE,
-                             PROCESSED_IDS_DIR)
+                              METADATA_FILE,
+                              LAST_RUN_PATH,
+                              SEQS_DIR,
+                              REMOVED_IDS_FILE,
+                              IDS_FILE,
+                              PROCESSED_IDS_DIR,
+                              DEBUG_DIR,
+                              TIMESTAMP)
 
 
 def save_processed_ids(processed_ids, logger=None):
@@ -220,6 +224,37 @@ def load_local_versions(logger=None):
     return local_versions
 
 
+def save_dropped_rows(dropped_df, reason, logger=None):
+    """
+    Saves dropped rows to a CSV in the debug directory, appending a 'reason' column.
+    By default, it appends to a file named 'duplicates_debug.csv'.
+
+    If you prefer a timestamped approach, you can add:
+       timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+       debug_file = os.path.join(DEBUG_DIR, f"{prefix}_{timestamp}.csv")
+
+    Args:
+        dropped_df (pd.DataFrame): DataFrame of dropped rows, must have an 'accession' column.
+        reason (str): Reason for dropping, e.g. "duplicate" or "update".
+        logger (logging.Logger, optional): Logger for progress messages.
+    """
+    if dropped_df.empty:
+        return
+
+    debug_file = os.path.join(DEBUG_DIR, "duplicates_debug_", TIMESTAMP, ".csv")
+
+    dropped_df = dropped_df.copy()
+    dropped_df["reason"] = reason
+
+    write_header = not os.path.exists(debug_file)
+    mode = 'a' if write_header is False else 'w'
+
+    dropped_df.to_csv(debug_file, mode=mode, header=write_header, index=False)
+
+    if logger:
+        logger.info(f"Appended {len(dropped_df)} dropped rows to {debug_file} with reason '{reason}'.")
+
+
 def duplicate_removal(entries, logger=None):
     """
     Remove duplicate entries based on accession and version.
@@ -232,16 +267,27 @@ def duplicate_removal(entries, logger=None):
         DataFrame: Deduplicated DataFrame.
     """
     # remove identical accession+version, keeping last
-    prev_len = len(entries)
-    entries.drop_duplicates(subset="accession", keep="last", inplace=True)
-    if logger:
-        logger.warning(f"{len(entries) - prev_len} duplicate entries dropped from entries.")
-    entries[["id", "version"]] = entries['accession'].apply(lambda x: pd.Series(split_accession(x)))
+    duplicates_mask = entries.duplicated(subset="accession", keep="last")
+    df_duplicates = entries[duplicates_mask].copy()  # the ones to drop
+    if not df_duplicates.empty:
+        # save dropped accessions
+        save_dropped_rows(df_duplicates, reason="duplicate", logger=logger)
+        entries.drop_duplicates(subset="accession", keep="last", inplace=True)
+        if logger:
+            logger.warning(f"{len(df_duplicates)} duplicate entries dropped from entries.")
+
     # remove older version of same accession
-    prev_len = len(entries)
-    entries = entries.loc[entries.groupby('id')['version'].idxmax()].drop(columns=['id', 'version'])
-    if logger:
-        logger.warning(f"{len(entries) - prev_len} older versions dropped, where newer entries exist.")
+    entries[["id", "version"]] = entries['accession'].apply(lambda x: pd.Series(split_accession(x)))
+    idx_to_keep = entries.groupby("id")["version"].idxmax()
+    df_older = entries.loc[~entries.index.isin(idx_to_keep)].copy()
+    if not df_older.empty:
+        # save dropped accessions
+        save_dropped_rows(df_older, reason="update", logger=logger)
+        entries = entries.loc[idx_to_keep]
+        if logger:
+            logger.warning(f"{len(df_older)} older versions dropped, where newer entries exist.")
+
+    entries.drop(columns=["id", "version"], inplace=True)
 
     # TODO catch if we download an older version?
 
@@ -256,19 +302,19 @@ def update_local_versions(entries, logger=None):
         entries (list): List of new entries to add to the local versions file.
         logger (logging.Logger, optional): Logger for logging progress. Defaults to None.
     """
-    with open(IDS_FILE, 'a') as f:
-        for entry in entries:
-            f.write(f"{entry}\n")
+    ex_ids = []
+    if os.path.exists(IDS_FILE):
+        with open(IDS_FILE, 'r') as f:
+            ex_ids = [line.strip() for line in f if line.strip()]
 
-    # remove duplicates here
-    with open(IDS_FILE, 'r') as f:
-        ex_ids = f.read().strip().split("\n")
-
-    if not len(ex_ids):
+    if not len(ex_ids) and not len(entries):
         return
 
-    ids_df = duplicate_removal(pd.DataFrame(ex_ids, columns=["accession"]))
+    ids = ex_ids + list(entries)
+
+    ids_df = duplicate_removal(pd.DataFrame(ids, columns=["accession"]), logger=logger)
     ids_df.to_csv(IDS_FILE, index=False, header=False)
+
     if logger:
         logger.info(f"Updated local versions in {IDS_FILE}.")
 
@@ -315,7 +361,7 @@ def save_removed_versions(removed_entries, logger=None):
         prev_removed = pd.DataFrame(columns=removed_entries.columns)
 
     removed = pd.concat([prev_removed, removed_entries], ignore_index=True)
-    removed = duplicate_removal(removed)
+    removed = duplicate_removal(removed, logger=logger)
 
     # save back to the file
     removed.to_csv(REMOVED_IDS_FILE, index=False)
@@ -333,12 +379,11 @@ def cleanup_old_files(directory, keep_last=3, logger=None):
         logger (logging.Logger, optional): Logger for logging messages. Defaults to None.
     """
     try:
-        # List all files in the directory with the specified prefix
         print(f"Cleaning up files in {directory}.")
-
+        extensions = [".txt", ".csv", ".log"]
         files = [
             os.path.join(directory, file)
-            for file in os.listdir(directory)
+            for file in os.listdir(directory) if file.endswith(tuple(extensions))
         ]
         if len(files) <= keep_last:
             if logger:
@@ -494,6 +539,7 @@ def post_process_metadata(logger=None):
     - Remove duplicate accessions.
     - Keep the highest version per ID.
     - Log warnings for irregularities.
+    - Save removed rows for debug purposes.
 
     Args:
         logger (logging.Logger, optional): Logger for logging progress. Defaults to None.
@@ -549,10 +595,20 @@ def post_process_metadata(logger=None):
     if logger:
         logger.info(f"Removed {len(meta_df) - len(final_df)} duplicate rows.")
 
+    # the removed rows
+    removed_df = pd.concat([meta_df.drop(columns=['id', 'version', 'index']), final_df]).drop_duplicates(keep=False)
+
     # save cleaned metadata
     final_df.to_csv(METADATA_FILE, index=False)
     if logger:
         logger.info(f"Post-processing complete. Saved {len(final_df) - 1} rows to '{METADATA_FILE}'.")
+
+    # write removed rows to debug file
+    if len(removed_df) > 0:
+        removed_file = os.path.join(DEBUG_DIR, f"removed_metadata_rows_{TIMESTAMP}.csv")
+        removed_df.to_csv(removed_file, index=False)
+        if logger:
+            logger.info(f"Saved {len(removed_df)} removed rows to: {removed_file}")
 
 
 def clean_profiles_from_data(ids_list, logger=None):
@@ -610,27 +666,21 @@ def clean_profiles_from_data(ids_list, logger=None):
     if os.path.exists(REMOVED_IDS_FILE):
         try:
             df_removed = pd.read_csv(REMOVED_IDS_FILE)
-            if "accession" in df_removed.columns:
-                before_count = len(df_removed)
-                df_removed = df_removed[df_removed["accession"].isin(keep_set)]
-                after_count = len(df_removed)
-                if after_count < before_count:
-                    df_removed.to_csv(REMOVED_IDS_FILE, index=False)
-                    if logger:
-                        logger.info(
-                            f"Removed {before_count - after_count} rows from {REMOVED_IDS_FILE} "
-                            f"that are not in the provided list."
-                        )
-                else:
-                    if logger:
-                        logger.info(
-                            f"No rows removed from {REMOVED_IDS_FILE}; "
-                            f"all were in the provided list."
-                        )
+            before_count = len(df_removed)
+            df_removed = df_removed[df_removed["accession"].isin(keep_set)]
+            after_count = len(df_removed)
+            if after_count < before_count:
+                df_removed.to_csv(REMOVED_IDS_FILE, index=False)
+                if logger:
+                    logger.info(
+                        f"Removed {before_count - after_count} rows from {REMOVED_IDS_FILE} "
+                        f"that are not in the provided list."
+                    )
             else:
                 if logger:
-                    logger.warning(
-                        f"No 'accession' column in {REMOVED_IDS_FILE}; skipping removal."
+                    logger.info(
+                        f"No rows removed from {REMOVED_IDS_FILE}; "
+                        f"all were in the provided list."
                     )
         except Exception as e:
             if logger:
@@ -680,7 +730,7 @@ def clean_profiles_from_data(ids_list, logger=None):
 
             removed_count = 0
             for fasta_name in fasta_files:
-                root_name = os.path.splitext(fasta_name)[0]  # e.g. "AB123456"
+                root_name = os.path.splitext(fasta_name)[0]
                 if root_name not in valid_roots:
                     # remove
                     full_path = os.path.join(SEQS_DIR, fasta_name)

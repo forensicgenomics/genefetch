@@ -21,7 +21,7 @@ Author: Noah Hurmer as part of the mitoTree Project.
 import os
 import pandas as pd
 
-from .global_defaults import IDS_FILE, METADATA_FILE, REMOVED_IDS_FILE, SEQS_DIR
+from .global_defaults import IDS_FILE, METADATA_FILE, REMOVED_IDS_FILE, SEQS_DIR, DEBUG_DIR, TIMESTAMP
 
 
 def check_duplicates_in_file(file_path, columns=None, logger=None):
@@ -72,13 +72,15 @@ def check_removed_and_ids_list(ids_list, logger=None):
             ids_df = pd.read_csv(IDS_FILE, header=None, names=["accession"])
             ids_accessions = set(ids_df['accession'])
         except FileNotFoundError:
-            logger.warning(f"No Ids file ('{IDS_FILE}') found. Ignoring.")
+            if logger:
+                logger.warning(f"No Ids file ('{IDS_FILE}') found. Ignoring.")
         try:
             # load removed_ids
             removed_df = pd.read_csv(REMOVED_IDS_FILE)
             removed_accessions = set(removed_df['accession'])
         except FileNotFoundError:
-            logger.warning(f"No Removed Ids file ('{REMOVED_IDS_FILE}') found. Ignoring.")
+            if logger:
+                logger.warning(f"No Removed Ids file ('{REMOVED_IDS_FILE}') found. Ignoring.")
 
         # combine
         combined_accessions = set(ids_accessions) | removed_accessions
@@ -90,11 +92,25 @@ def check_removed_and_ids_list(ids_list, logger=None):
         # how many to show
         n = 5
         if missing_in_combined:
-            logger.warning(
-                f"{len(missing_in_combined)} accessions missing in combined list relative to the search query. Showing first {n}: {list(missing_in_combined)[:n]}")
+            missing_file = os.path.join(DEBUG_DIR, f"missing_in_combined_{TIMESTAMP}.txt")
+            with open(missing_file, 'w') as f:
+                for acc in sorted(missing_in_combined):
+                    f.write(acc + "\n")
+            if logger:
+                logger.warning(
+                    f"{len(missing_in_combined)} accessions missing in combined list relative to the search query. "
+                    f" Showing first {n}: {list(missing_in_combined)[:n]}")
+                logger.info(f"Wrote {len(missing_in_combined)} missing accessions to {missing_file}")
         if extra_in_combined:
-            logger.warning(
-                f"{len(extra_in_combined)} extra accessions in combined list relative to the search query. Showing first {n}: {list(extra_in_combined)[:n]}")
+            extra_file = os.path.join(DEBUG_DIR, f"extra_in_combined_{TIMESTAMP}.txt")
+            with open(extra_file, 'w') as f:
+                for acc in sorted(extra_in_combined):
+                    f.write(acc + "\n")
+            if logger:
+                logger.warning(
+                    f"{len(extra_in_combined)} extra accessions in combined list relative to the search query. "
+                    f"Showing first {n}: {list(extra_in_combined)[:n]}")
+                logger.info(f"Wrote {len(extra_in_combined)} extra accessions to {extra_file}")
 
     except Exception as e:
         logger.error(f"Error checking ids_list and removed_ids: {e}")

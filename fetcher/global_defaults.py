@@ -128,7 +128,12 @@ LOG_DIR = "data/logs"
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)
 LOG_FILE = f"{LOG_DIR}/fetchlog_{TIMESTAMP}.log"
-DEBUG_LOG_FILE = f"{LOG_DIR}/fetchlog_{TIMESTAMP}_DEBUG.log"
+####
+# debug directory
+DEBUG_DIR = os.path.join(LOG_DIR, "debug_info")
+if not os.path.exists(DEBUG_DIR):
+    os.makedirs(DEBUG_DIR)
+DEBUG_LOG_FILE = f"{DEBUG_DIR}/fetchlog_{TIMESTAMP}_DEBUG.log"
 ####
 #################################################################################
 ####

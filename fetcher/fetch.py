@@ -70,7 +70,8 @@ from .global_defaults import (LIMIT_NUM,
                               SOFT_RESTART,
                               FETCH_PARALLEL,
                               METADATA_TEMPLATE,
-                              CLEAN_DIR)
+                              CLEAN_DIR,
+                              DEBUG_DIR)
 from .filter_tools import load_filters
 from .logger_setup import get_logger
 from .post_process_check import main as post_process_check
@@ -82,6 +83,7 @@ VERBOSE = False
 
 # set up logging
 logger = get_logger()
+logger.info(f"For a debug level log file, view the logfile within {DEBUG_DIR}.\n")
 
 # file lock writing for parallel fetching
 write_lock = threading.Lock()
@@ -571,6 +573,15 @@ def check_valid_inputs(arg_dict):
     if arg_dict["max_num"] > LIMIT_NUM or arg_dict["max_num"] < 1:
         raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}].\n"
                          f"Choose a number of Profiles to fetch with in those bounds.")
+    # ask to make sure they want to clean the dir
+    if arg_dict["clean_dir"]:
+        if input("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
+                 "if they are not within the current search Query!\n"
+                 "This will potentially delete a lot of profile data!\n"
+                 "If you are unsure if this is the correct action to take, make sure to make a copy of the data directory.\n"
+                 "\nDo you want to continue? (y/n)\033[0m") != "y":
+            print("\nAborting.")
+            exit()
     # TODO possibly add more checking other values here
 
 
@@ -587,7 +598,7 @@ def main():
     CLEAN_DIR = args.clean_dir
 
     check_valid_inputs({"max_num": MAX_NUM, "batch_size": BATCH_SIZE, "num_workers":NUM_WORKERS,
-                        "search_term": SEARCH_TERM})
+                        "search_term": SEARCH_TERM, "clean_dir": CLEAN_DIR})
 
     start_time = time.time()
     try:
@@ -635,7 +646,7 @@ def main():
 
     if CLEAN_DIR:
         # TODO testing
-        # full_id_list = ["KF040496.1"]
+        full_id_list = ["KF040496.1"]
 
         print("Cleaning data directory based on current query.")
         logger.info(f"Cleaning data directory by removing any profile data not present in the current query with the "
@@ -647,7 +658,8 @@ def main():
 
     post_process_check(logger=logger, ids_list=full_id_list)
     cleanup_old_files(PROCESSED_IDS_DIR, 3, logger)
-    cleanup_old_files(LOG_DIR, 10, logger)
+    cleanup_old_files(LOG_DIR, 5, logger)
+    cleanup_old_files(DEBUG_DIR, 8, logger)
 
     return 0
 
