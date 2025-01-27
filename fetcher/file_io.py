@@ -241,7 +241,7 @@ def save_dropped_rows(dropped_df, reason, logger=None):
     if dropped_df.empty:
         return
 
-    debug_file = os.path.join(DEBUG_DIR, "duplicates_debug_", TIMESTAMP, ".csv")
+    debug_file = os.path.join(DEBUG_DIR, "duplicates_debug_" + TIMESTAMP + ".csv")
 
     dropped_df = dropped_df.copy()
     dropped_df["reason"] = reason
