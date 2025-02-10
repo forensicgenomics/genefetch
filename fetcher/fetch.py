@@ -564,6 +564,8 @@ def parse_args():
     parser.add_argument("--search-term", type=str, default=SEARCH_TERM, help="NCBI search term.")
     parser.add_argument("--clean-dir", action="store_true", default=CLEAN_DIR, help="Set this flag to clean the output directory,"
                                                                                     " removing profiles not within the current calls fetch.")
+    parser.add_argument("--y", action="store_true", default=False,
+                        help="Answer all user inputs with yes.")
 
     return parser.parse_args()
 
@@ -588,28 +590,30 @@ def main():
     SOFT_RESTART = args.soft_restart
     SEARCH_TERM = args.search_term
     CLEAN_DIR = args.clean_dir
+    FORCE = args.y
 
     check_valid_inputs({"max_num": MAX_NUM, "batch_size": BATCH_SIZE, "num_workers":NUM_WORKERS,
                         "search_term": SEARCH_TERM, "clean_dir": CLEAN_DIR})
 
     start_time = time.time()
     try:
-        num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
         id_list = fetch_profile_accs(SEARCH_TERM, max_num=MAX_NUM, logger=logger)
 
-        clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
-                 "if they are not within the current search Query! This will potentially delete a lot of profile data!\n"
-                 f"Only those within the {num_all} total returned matches will be kept after this action.\n"
-                 "If you are unsure if this is the correct action to take,"
-                 " make sure to make a copy of the data directory.\033[0m\n") if CLEAN_DIR else ""
+        if not FORCE:
+            num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
+            clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
+                     "if they are not within the current search Query! This will potentially delete a lot of profile data!\n"
+                     f"Only those within the {num_all} total returned matches will be kept after this action.\n"
+                     "If you are unsure if this is the correct action to take,"
+                     " make sure to make a copy of the data directory.\033[0m\n") if CLEAN_DIR else ""
 
-        if input(f"\nProvided Search Term returns {num_all} total profiles.\n"
-                 f"{len(id_list)} will be attempted to be fetched.\n"
-                 f"If this seems incorrect, adjust the `max_num` or other parameters.\n"
-                 f"{clean_msg}\n"
-                 f"Do you wish to continue? (y/n)") != "y":
-            print("\nAborting.")
-            exit()
+            if input(f"\nProvided Search Term returns {num_all} total profiles.\n"
+                     f"{len(id_list)} will be attempted to be fetched.\n"
+                     f"If this seems incorrect, adjust the `max_num` or other parameters.\n"
+                     f"{clean_msg}\n"
+                     f"Do you wish to continue? (y/n)") != "y":
+                print("\nAborting.")
+                exit()
 
         print("\nExecuting Fetch!\n")
 
