@@ -573,15 +573,7 @@ def check_valid_inputs(arg_dict):
     if arg_dict["max_num"] > LIMIT_NUM or arg_dict["max_num"] < 1:
         raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}].\n"
                          f"Choose a number of Profiles to fetch with in those bounds.")
-    # ask to make sure they want to clean the dir
-    if arg_dict["clean_dir"]:
-        if input("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
-                 "if they are not within the current search Query!\n"
-                 "This will potentially delete a lot of profile data!\n"
-                 "If you are unsure if this is the correct action to take, make sure to make a copy of the data directory.\n"
-                 "\nDo you want to continue? (y/n)\033[0m") != "y":
-            print("\nAborting.")
-            exit()
+
     # TODO possibly add more checking other values here
 
 
@@ -602,7 +594,25 @@ def main():
 
     start_time = time.time()
     try:
+        num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
         id_list = fetch_profile_accs(SEARCH_TERM, max_num=MAX_NUM, logger=logger)
+
+        clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
+                 "if they are not within the current search Query! This will potentially delete a lot of profile data!\n"
+                 f"Only those within the {num_all} total returned matches will be kept after this action.\n"
+                 "If you are unsure if this is the correct action to take,"
+                 " make sure to make a copy of the data directory.\033[0m\n") if CLEAN_DIR else ""
+
+        if input(f"\nProvided Search Term returns {num_all} total profiles.\n"
+                 f"{len(id_list)} will be attempted to be fetched.\n"
+                 f"If this seems incorrect, adjust the `max_num` or other parameters.\n"
+                 f"{clean_msg}\n"
+                 f"Do you wish to continue? (y/n)") != "y":
+            print("\nAborting.")
+            exit()
+
+        print("\nExecuting Fetch!\n")
+
     except Exception as e:
         exit_msg = (f"\033[91mFatal Error when initially fetching IDs from Databank: {e}. Aborting.\n"
                      f"This is likely caused by the genebank api, please retry again later or "
@@ -641,7 +651,7 @@ def main():
     try:
         full_id_list = fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger)
     except Exception as e:
-        logger.error("Problem fetching full accession list for post-process check. Continuing without.")
+        logger.error(f"Problem fetching full accession list for post-process check: {e}. Continuing without.")
         full_id_list = []
 
     if CLEAN_DIR:
