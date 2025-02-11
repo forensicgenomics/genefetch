@@ -120,14 +120,20 @@ def rate_limited_call(api_call, *args, **kwargs):
             try:
                 return api_call(*args, **kwargs)
             except HTTPError as e:
+                # TODO maybe we should just blanket retry all HTTP errors and retry regardeless of type?
                 if e.code == 429:  # Too Many Requests
                     if logger:
-                        logger.warning(f"Too many requests, retrying. Attempt {attempt + 1}/3.")
+                        logger.warning(f"HTTP error: {e} ; Retrying. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
                     continue
                 elif e.code == 400:  # Bad Request
                     if logger:
-                        logger.warning(f"Bad Request. Attempt {attempt + 1}/3.")
+                        logger.warning(f"HTTP error: {e} ; Retrying. Attempt {attempt + 1}/3.")
+                    wait_helper(attempt)
+                    continue
+                elif e.code == 500:  # Internal Server Error
+                    if logger:
+                        logger.warning(f"HTTP error: {e} ; Retrying. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
                     continue
                 else:
