@@ -506,6 +506,7 @@ def process_profiles(id_list:list, batch_size:int, parallel:bool, NUM_WORKERS):
         parallel (bool): Whether to process entries in parallel.
         NUM_WORKERS (int): Number of worker threads for parallel processing.
     """
+    print(f"Fetching {len(id_list)} Profiles.")
     print(f"Fetching in Batch sizes of {batch_size}.")
     if parallel:
         process_entries_parallel(id_list, batch_size, NUM_WORKERS)
@@ -642,7 +643,6 @@ def main():
         id_list = readd_recently_modified_profiles(SEARCH_TERM, id_list, last_run_date)
 
     # execute fetching and writing process
-    print(f"Fetching Profiles up to {MAX_NUM}")
     process_profiles(id_list, BATCH_SIZE, FETCH_PARALLEL, NUM_WORKERS)
     print("Finished fetching all Profiles.")
     print(f"Processed {len(id_list)} Profiles in {time.time() - start_time} seconds.")
