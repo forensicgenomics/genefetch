@@ -143,16 +143,12 @@ def rate_limited_call(api_call, *args, **kwargs):
             except Exception as e:
                 if "Remote end closed connection without response" in str(e): # this error comes up sometimes and a retry fixes it
                     if logger:
-                        logger.warning(f"Remote end closed connection. Retrying. Attempt {attempt + 1}/3.")
-                        # TODO testing
-                        logger.warning(f"Specific Error: {e.__class__.__name__}")
+                        logger.warning(f"Error: {e.__class__.__name__}. Retrying. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
                     continue
-                if "urlopen error [Errno 101] Network is unreachable" in str(e):  # this error comes up sometimes and a retry fixes it
+                if "urlopen error" in str(e):
                     if logger:
-                        logger.warning(f"Network is unreachable urlopen error. Retrying. Attempt {attempt + 1}/3.")
-                        # TODO testing
-                        logger.warning(f"Specific Error: {e.__class__.__name__}")
+                        logger.warning(f"Error: {e.__class__.__name__}: {e}. Attempt {attempt + 1}/3.")
                     wait_helper(attempt)
                     continue
                 else:
