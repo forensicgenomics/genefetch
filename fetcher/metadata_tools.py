@@ -79,7 +79,7 @@ def pubmed_info_fill(pubmed_id, pubmed_record, logger=None):
     pubmed_api_info = {}
     try:
         pubmed_api_info["pub_title"] = pubmed_record[0]["Title"]
-        pubmed_api_info["pub_date"] = pubmed_record[0]["PubDate"]
+        pubmed_api_info["pub_date"] = extract_date(pubmed_record[0]["PubDate"])
         pubmed_api_info["first_aut"] = pubmed_record[0]["AuthorList"][0]
 
     except Exception as e:
@@ -175,62 +175,87 @@ def get_assembly_info(record, logger=None):#
 def extract_date(journal_field):
     """
     Extract a date from a journal field string, if present.
+    Always returns:
+        - 'mm-yyyy' if any month (and/or day) information is available
+        - 'yyyy' if only a year is available
+        - None if no valid date is found.
 
-    Args:
-        journal_field (str): String containing potential date information.
-
-    Returns:
-        str: Extracted date in the format 'mm-yyyy' or 'yyyy', or None if no valid date is found.
+    Stings containing the following should work:
+        "Mar 2012", "March 2012", "2012 Mar", "2012 March",
+        "12 Mar 2012", "12 March 2012", "2012 Mar 12", "2012 March 12",
+        "2012 Mar 2", "12-03-2012", "12-Mar-2012",
+        "03,2012", "03-2012", "(2012)", "2012", "March,2012"
     """
-    # match various date formats that were found manually
-    patterns = [
-        r'\b(\d{2}-\d{2}-\d{4})(\b|$)',  # 'dd-mm-yyyy'
-        r'\b(\d{2},\d{4})(\b|$)',  # 'mm,yyyy'
-        r'\b([A-Za-z]+,\d{4})(\b|$)',  # 'month,yyyy'
-        r'\b([A-Za-z]+ \d{4})(\b|$)',  # 'month yyyy'
-        r'\b\((\d{4})\)(\b|$)',  # '(yyyy)'
-        r'\b(\d{2}-[A-Za-z]{3}-\d{4})(\b|$)'  # 'dd-MMM-yyyy' (e.g., '04-OCT-2024')
-    ]
 
     def is_valid_year(year):
-        """Helper function to check if the year is valid
-         (between 1900 and the current year)."""
         current_year = datetime.now().year
         return 1900 <= year <= current_year
 
-    for pattern in patterns:
-        match = re.search(pattern, journal_field)
-        if match:
-            date_str = match.group(0)
-            try:
-                # check matches are valid dates and return as mm-yyyy or yyyy
-                if '-' in date_str:
-                    if re.match(r'\d{2}-[A-Za-z]{3}-\d{4}', date_str):
-                        date_obj = datetime.strptime(date_str, '%d-%b-%Y')
-                    elif re.match(r'\d{2}-\d{2}-\d{4}', date_str):
-                        date_obj = datetime.strptime(date_str, '%d-%m-%Y')
-                    else:
-                        continue
-                    if is_valid_year(date_obj.year):
-                        return date_obj.strftime('%m-%Y')
-                elif ',' in date_str:
-                    if date_str[0].isdigit():
-                        date_obj = datetime.strptime(date_str, '%m,%Y')
-                    else:
-                        date_obj = datetime.strptime(date_str, '%B,%Y')
-                    if is_valid_year(date_obj.year):
-                        return date_obj.strftime('%m-%Y')
-                elif date_str.isdigit() and len(date_str) == 4:
-                    year = int(date_str)
-                    if is_valid_year(year):
-                        return str(year)
-                else:
-                    date_obj = datetime.strptime(date_str, '%B %Y')
-                    if is_valid_year(date_obj.year):
-                        return date_obj.strftime('%m-%Y')
+    # tuples are (pattern, [possible_strptime_formats]).
+    # triy the most specific patterns (with day+month+year) first.
+    patterns = [
+        # 1) dd Month yyyy (e.g. "12 March 2012", "12 Mar 2012")
+        (r'\b(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})\b', ['%d %B %Y', '%d %b %Y']),
 
+        # 2) Month dd yyyy (e.g. "March 12 2012", "Mar 12 2012")
+        #    optionally with a comma: "March 12, 2012"
+        (r'\b([A-Za-z]{3,9}\s+\d{1,2},?\s*\d{4})\b', ['%B %d %Y', '%b %d %Y']),
+
+        # 3) dd-mm-yyyy (e.g. "12-03-2012")
+        (r'\b(\d{1,2}-\d{1,2}-\d{4})\b', ['%d-%m-%Y']),
+
+        # 4) dd-MMM-yyyy (e.g. "12-Mar-2012", "12-March-2012")
+        (r'\b(\d{1,2}-[A-Za-z]{3,9}-\d{4})\b', ['%d-%b-%Y', '%d-%B-%Y']),
+
+        # 5) yyyy Month dd (e.g. "2012 March 12", "2012 Mar 12")
+        (r'\b(\d{4}\s+[A-Za-z]{3,9}\s+\d{1,2})\b', ['%Y %B %d', '%Y %b %d']),
+
+        # 6) yyyy Month (e.g. "2012 March", "2012 Mar")
+        (r'\b(\d{4}\s+[A-Za-z]{3,9})\b', ['%Y %B', '%Y %b']),
+
+        # 7) Month yyyy (e.g. "March 2012", "Mar 2012")
+        (r'\b([A-Za-z]{3,9}\s+\d{4})\b', ['%B %Y', '%b %Y']),
+
+        # 8) Month,yyyy (e.g. "March,2012", "Mar,2020")
+        (r'\b([A-Za-z]{3,9}),(\d{4})\b', ['%B,%Y', '%b,%Y']),
+
+        # 9) mm,yyyy or mm-yyyy (e.g. "03,2012" or "03-2012")
+        (r'\b(\d{1,2})[,-](\d{4})\b', ['%m,%Y', '%m-%Y']),
+
+        # 10) (yyyy) or yyyy
+        (r'\(?\b(\d{4})\b\)?', ['%Y']),
+    ]
+
+    text = str(journal_field)
+
+    for regex_pattern, strptime_formats in patterns:
+        match = re.search(regex_pattern, text)
+        if not match:
+            continue
+
+        date_str = match.group(0)
+        # clean  commas or extra spaces
+        date_str = re.sub(r',\s*', ',', date_str)
+
+        parsed_date = None
+        for fmt in strptime_formats:
+            try:
+                parsed_date = datetime.strptime(date_str, fmt)
+                break
             except ValueError:
                 continue
+
+        if parsed_date:
+            year = parsed_date.year
+            if not is_valid_year(year):
+                continue
+
+            # if just year
+            if strptime_formats == ['%Y']:
+                return str(year)
+            else:
+                # otherwise, return mm-yyyy.
+                return parsed_date.strftime('%m-%Y')
 
     return None
 
