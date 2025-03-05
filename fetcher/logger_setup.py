@@ -28,6 +28,7 @@ def get_logger():
     The logger writes:
     - DEBUG-level and above logs to a debug log file (DEBUG_LOG_FILE).
     - INFO-level and above logs to a general log file (LOG_FILE).
+    - ERROR-level and above logs are printed to console and a flag is set.
 
     Returns:
         logging.Logger: Configured logger instance.
@@ -48,12 +49,51 @@ def get_logger():
     debug_handler.setFormatter(formatter)
     logger.addHandler(debug_handler)
 
-    # handler 2: write only INFO+ logs to LOG_FILE (as specified in global_defaults)
+    # handler 2: write only INFO+ logs to LOG_FILE
     info_handler = logging.FileHandler(LOG_FILE, mode='a')
     info_handler.setLevel(logging.INFO)
     info_handler.setFormatter(formatter)
     logger.addHandler(info_handler)
 
+    # handler 3: print ERROR+ logs to console
+    error_console_handler = logging.StreamHandler()
+    error_console_handler.setLevel(logging.ERROR)
+    error_console_handler.setFormatter(formatter)
+    logger.addHandler(error_console_handler)
+
+
+    # handler 4: error flag
+    error_flag_handler = ErrorFlagHandler()
+    error_flag_handler.setLevel(logging.ERROR)
+    logger.addHandler(error_flag_handler)
+    logger.error_flag_handler = error_flag_handler
+
     logger.propagate = False
 
     return logger
+
+
+class ErrorFlagHandler(logging.Handler):
+    """
+    Custom Handler to track if there was an error.
+    """
+    def __init__(self):
+        super().__init__()
+        self.error_occurred = False
+
+    def emit(self, record):
+        if record.levelno >= logging.ERROR:
+            self.error_occurred = True
+
+
+def check_run_success():
+    """
+    Returns True if no error-level logs have been recorded
+    by the mitoFetchLogger; otherwise returns False.
+    """
+    logger = logging.getLogger("mitoFetchLogger")
+    error_flag_handler = getattr(logger, "error_flag_handler", None)
+    # If there's no handler, we assume no errors were tracked
+    if not error_flag_handler:
+        return True
+    return not error_flag_handler.error_occurred

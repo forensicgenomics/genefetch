@@ -73,7 +73,8 @@ from .global_defaults import (LIMIT_NUM,
                               CLEAN_DIR,
                               DEBUG_DIR)
 from .filter_tools import load_filters
-from .logger_setup import get_logger
+from .logger_setup import (get_logger,
+                           check_run_success)
 from .post_process_check import main as post_process_check
 
 
@@ -607,7 +608,7 @@ def main():
               f"{len(id_list)} will be attempted to be fetched.\n")
 
         if not FORCE:
-            clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dict` flag set will remove any profiles from all data files "
+            clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dir` flag set will remove any profiles from all data files "
                      "if they are not within the current search Query! This will potentially delete a lot of profile data!\n"
                      f"Only those within the {num_all} total returned matches will be kept after this action.\n"
                      "If you are unsure if this is the correct action to take, "
@@ -625,7 +626,7 @@ def main():
         exit_msg = (f"\033[91mFatal Error when initially fetching IDs from Databank: {e}. Aborting.\n"
                      f"This is likely caused by the genebank api, please retry again later or "
                      f"contact the developers if this error persists.\033[0m")
-        logger.error(exit_msg)
+        logger.critical(exit_msg)
         print(exit_msg)
 
         raise SystemExit(1)
@@ -674,6 +675,12 @@ def main():
     cleanup_old_files(PROCESSED_IDS_DIR, 3, logger)
     cleanup_old_files(LOG_DIR, 5, logger)
     cleanup_old_files(DEBUG_DIR, 8, logger)
+
+    # check if there were errors
+    if check_run_success():
+        print("\033[0;32m\nRun completed successfully with no logged errors.\n\033[0m")
+    else:
+        print("\033[91m\nFetching concluded with Errors!\nCheck the logfile for details.\n\033[0m")
 
     return 0
 
