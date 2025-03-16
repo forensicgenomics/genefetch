@@ -602,6 +602,7 @@ def main():
     start_time = time.time()
     try:
         id_list = fetch_profile_accs(SEARCH_TERM, max_num=MAX_NUM, logger=logger)
+        wait_helper(0)
         num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
 
         print(f"\nProvided Search Term returns {num_all} total profiles.\n"

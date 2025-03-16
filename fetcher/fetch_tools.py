@@ -28,6 +28,7 @@ Author: Noah Hurmer as part of the mitoTree Project.
 # helpers for pipeline
 import os.path
 from datetime import date
+import time
 from Bio import Entrez
 from .global_defaults import (API_DEST,
                               EMAIL_DEST,
@@ -215,24 +216,32 @@ def fetch_profile_accs(search_term, max_num=None, n_days=None, logger=None):
     Returns:
         list: List of accession numbers fetched from Entrez.
     """
-    try:
-        if logger:
-            logger.info(f"Fetching IDs with search term: {search_term}")
+    attempt = 0
+    retries = 3
+    while attempt < retries:
+        try:
+            if logger:
+                logger.info(f"Fetching IDs with search term: {search_term}")
 
-        if n_days:
-            handle = Entrez.esearch(db="nucleotide", idtype="acc", term=search_term, retmax=max_num, datetype="mdat",
-                                    reldate=n_days)
-        else:
-            handle = Entrez.esearch(db="nucleotide", idtype="acc", term=search_term, retmax=max_num)
+            if n_days:
+                handle = Entrez.esearch(db="nucleotide", idtype="acc", term=search_term, retmax=max_num, datetype="mdat",
+                                        reldate=n_days)
+            else:
+                handle = Entrez.esearch(db="nucleotide", idtype="acc", term=search_term, retmax=max_num)
 
-        record = Entrez.read(handle)
-        handle.close()
-        if logger:
-            logger.info(f"Found {record.get('Count')} matches.")
-        return record['IdList']
+            record = Entrez.read(handle)
+            handle.close()
+            if logger:
+                logger.info(f"Found {record.get('Count')} matches.")
+            return record['IdList']
 
-    except Exception as e:
-        if logger:
-            logger.error(f"Error fetching IDs: {e}")
-        raise e
-        # return []
+        except Exception as e:
+            attempt += 1
+            if attempt == retries:
+                if logger:
+                    logger.error(f"Error fetching IDs: {e}")
+                raise e
+            else:
+                if logger:
+                    logger.warning(f"Fetching IDs Attempt {attempt} failed: {e} ; retrying.")
+                time.sleep(1)
