@@ -605,8 +605,7 @@ def main():
         wait_helper(0)
         num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
 
-        print(f"\nProvided Search Term returns {num_all} total profiles.\n"
-              f"{len(id_list)} will be attempted to be fetched.\n")
+        print(f"\nProvided Search Term returns {num_all} total profiles.\n")
 
         if not FORCE:
             clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dir` flag set will remove any profiles from all data files "
@@ -635,6 +634,8 @@ def main():
     # soft restart by loading processed IDs and filtering the list
     if SOFT_RESTART:
         id_list = soft_restart(id_list, MAX_NUM, SEARCH_TERM)
+    else:
+        print(f"{len(id_list)} will be attempted to be updated or fetched.\n")
 
     # filter out profiles that do not need to be fetched, as their current version is up to date
     local_versions = load_local_versions(logger)
