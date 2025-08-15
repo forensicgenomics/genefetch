@@ -86,6 +86,9 @@ python -m fetcher.main \
 
 
 You cannot use `soft-restart` in combination with `clean-dir` or `update-exclusions`.
+It is also not advised to use `soft-restart` afterwards, as the tracker for the the soft restart mode is not altered by the cleaning process.
+In general, use `soft-restart` only, when you are building your database and want to accumulate it in smaller batches, or when testing something.
+When simply updating or cleaning your data, go without the soft restart option.
 
 Default values are stored in `genefetch/global_defaults.py`.
 
