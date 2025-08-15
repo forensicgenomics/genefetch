@@ -196,7 +196,7 @@ def main(logger=None, ids_list=None):
 
     print("postprocess check complete.")
     if logger:
-        logger.info("post-process check complete.")
+        logger.info("post-process check complete.\n")
 
 
 if __name__ == "__main__":

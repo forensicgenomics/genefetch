@@ -571,7 +571,7 @@ def post_process_metadata(logger=None):
     if logger:
         logger.info(f"Loaded {len(meta_df) - 1} rows from metadata file.")
 
-    print("Performing post-processing of metadata file.")
+    print("\nPerforming post-processing of metadata file.")
     if logger:
         logger.info(f"Performing Post-processing of metadata file.")
 
@@ -632,6 +632,10 @@ def post_process_metadata(logger=None):
 def clean_profiles_from_data(ids_list, logger=None, mode="keep", removed_reason="excluded"):
     """
     Cleans local data based on a list of accessions.
+    Keep mode is used during `clean-dir` where it removes any traces of profiles (also in removed.csv) that
+        are not in the supplied ids_list.
+    Remove mode is used during `update-exclusions` where it removes traces of profiles in the supplied ids_list
+        and adds them to the removed.csv as well as remove any profiles from remove.csv that are not in the supplied list.
 
     mode:
       - "keep"   -> keep only these ids, remove everything else; and remove these ids from removed.csv
@@ -656,10 +660,10 @@ def clean_profiles_from_data(ids_list, logger=None, mode="keep", removed_reason=
         if logger: logger.info(msg)
         else: print(msg)
 
-    # ids removed from data for remove mode
+    # ids removed from data
     actually_removed_ids = set()
 
-    # IDS_FILE (plain text, one accession per line)
+    # IDS_FILE
     if os.path.exists(IDS_FILE):
         try:
             with open(IDS_FILE, "r", encoding="utf-8") as f:
@@ -669,7 +673,7 @@ def clean_profiles_from_data(ids_list, logger=None, mode="keep", removed_reason=
                 removed_here = set(lines) - set(kept)
             else:
                 kept = [ln for ln in lines if ln not in target_set]
-                removed_here = set(lines) - set(kept)   # equals lines ∩ target_set
+                removed_here = set(lines) - set(kept)
             if len(kept) != len(lines):
                 with open(IDS_FILE, "w", encoding="utf-8") as f:
                     for ln in kept:
@@ -737,33 +741,39 @@ def clean_profiles_from_data(ids_list, logger=None, mode="keep", removed_reason=
         except Exception as e:
             log(f"error cleaning fasta files in {SEQS_DIR}: {e}")
 
-    # removed.csv updates (uses your helper to append; then prune as requested)
+    # removed.csv
     try:
         if mode == "keep":
-            # drop kept accessions from removed.csv
+            # drop accessions from removed.csv that are not in the keep set
             if os.path.exists(REMOVED_IDS_FILE) and target_set:
                 df = pd.read_csv(REMOVED_IDS_FILE)
-                if "accession" in df.columns:
-                    before = len(df)
-                    df = df[~df["accession"].astype(str).isin(target_set)]
-                    if len(df) != before:
-                        df.to_csv(REMOVED_IDS_FILE, index=False)
-                        log(f"pruned kept ids from {REMOVED_IDS_FILE}.")
-        else:
-            # append only actually-removed ids (skip existing; handled by helper)
+                before = len(df)
+                df = df[df["accession"].astype(str).isin(target_set)]
+                if len(df) != before:
+                    df.to_csv(REMOVED_IDS_FILE, index=False)
+                    log(f"pruned {before - len(df)} row(s) from {REMOVED_IDS_FILE} to match keep set.")
+
+            if actually_removed_ids:
+                log(f"keep mode: removed {len(actually_removed_ids)} accessions from ids/metadata.")
+
+        else: # remove mode
+            # append only actually removed ids
             if actually_removed_ids:
                 removed_entries = [(acc, removed_reason) for acc in sorted(actually_removed_ids)]
                 save_removed_versions(removed_entries, logger=logger)
 
-            # then prune: keep ONLY rows whose accession is in the current remove set
+                log(f"remove mode: removed {len(actually_removed_ids)} accessions from ids/metadata and added them to the removed file.")
+
+            # keep only rows whose accession is in the current remove set
+            # so delete any from removed.csv that were removed before but are no longer
             if os.path.exists(REMOVED_IDS_FILE):
                 df = pd.read_csv(REMOVED_IDS_FILE)
-                if "accession" in df.columns:
-                    before = len(df)
-                    df = df[df["accession"].astype(str).isin(target_set)]
-                    if len(df) != before:
-                        df.to_csv(REMOVED_IDS_FILE, index=False)
-                        log(f"pruned non-requested ids from {REMOVED_IDS_FILE} to match current remove set.")
+                before = len(df)
+                df = df[df["accession"].astype(str).isin(target_set)]
+                if len(df) != before:
+                    df.to_csv(REMOVED_IDS_FILE, index=False)
+                    log(f"pruned non-requested ids from {REMOVED_IDS_FILE} to match current exclusions.")
+
     except Exception as e:
         log(f"error updating {REMOVED_IDS_FILE}: {e}")
 

@@ -684,12 +684,12 @@ def main():
         full_id_list = []
 
     if CLEAN_DIR:
-        print("Cleaning data directory based on current query.")
+        print("\nCleaning data directory based on current query.")
         logger.info(f"Cleaning data directory by removing any profile data not present in the current query with the "
                    f"search-term: {SEARCH_TERM} and a max-num of {LIMIT_NUM}.")
         if full_id_list:
             removed_profiles = clean_profiles_from_data(full_id_list, logger=logger)
-            clean_msg = f"Removed {len(removed_profiles)} profiles while cleaning."
+            clean_msg = f"Removed {len(removed_profiles)} profiles while cleaning.\n"
             logger.info(clean_msg)
             print(clean_msg)
         else:
