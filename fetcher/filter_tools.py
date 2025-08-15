@@ -25,9 +25,41 @@ import os
 from .global_defaults import EXCLUSIONS_DIR, FILTERS
 
 
-def build_exclusion_filters(exclusions_dir):
+def read_exclusion_files():
     """
-    For each .txt file in EXCLUSIONS_DIR, create a dict with:
+    Read all of the profiles to be excluded from all files in EXCLUSIONS_DIR.
+
+    Returns:
+        {"basename_without_ext": set_of_ids, ...} ignores blank lines and lines starting with '#'
+    """
+    out = {}
+    if not os.path.isdir(EXCLUSIONS_DIR):
+        return out
+    for fname in os.listdir(EXCLUSIONS_DIR):
+        if not fname.endswith(".txt"):
+            continue
+        reason = os.path.splitext(fname)[0]
+        path = os.path.join(EXCLUSIONS_DIR, fname)
+        ids = set()
+        with open(path, "r", encoding="utf-8") as f:
+            for ln in f:
+                s = ln.strip()
+                if not s or s.startswith("#"):
+                    continue
+                ids.add(s)
+        if ids:
+            out[reason] = ids
+    return out
+
+
+def build_exclusion_filters(exclusions_dir=None, id_map=None):
+    """
+    if id_map is provided, use it; else read files from exclusions_dir.
+    returns: [{"description": <filebase>, "fun": lambda rec: rec.id in ids}, ...]
+    """
+    """
+    If id_map is given, use it, otherwise read each .txt file in EXCLUSIONS_DIR.
+    Creates a dict with:
         {
             "description": filename_without_ext,
             "fun": lambda record: record.id in <loaded_id_list>
@@ -39,33 +71,21 @@ def build_exclusion_filters(exclusions_dir):
     Returns:
         list[dict]: A list of filter dictionaries with `description` and `fun` keys.
     """
-    exclusion_filters = []
+    if id_map is None:
+        if exclusions_dir is None:
+            raise ValueError("either id_map or exclusions_dir must be provided")
+        id_map = read_exclusion_files(exclusions_dir)
 
-    if not os.path.isdir(exclusions_dir):
-        return exclusion_filters
-
-    for file_name in os.listdir(exclusions_dir):
-        # skip non-txt files
-        if not file_name.endswith(".txt"):
-            continue
-
-        full_path = os.path.join(exclusions_dir, file_name)
-        # e.g. file_name = "manual_exclusion.txt" -> description: "manual_exclusion"
-        description = os.path.splitext(file_name)[0]
-
-        with open(full_path, "r") as f:
-            exclusion_ids = [line.strip() for line in f if line.strip()]
-
-        # create filter dictionary
-        exclusion_filters.append({
-            "description": description,
-            "fun": lambda record, ids=exclusion_ids: record.id in ids
+    filters = []
+    for desc, ids in id_map.items():
+        filters.append({
+            "description": desc,
+            "fun": (lambda record, ids=ids: record.id in ids)
         })
+    return filters
 
-    return exclusion_filters
 
-
-def load_filters():
+def load_filters(exclusion_id_map=None):
     """
     Load and combine static and dynamically created filters.
 
@@ -76,6 +96,6 @@ def load_filters():
     Returns:
         list[dict]: A combined list of static and dynamically generated filters.
     """
-    dynamic_filters = build_exclusion_filters(exclusions_dir=EXCLUSIONS_DIR)
+    dynamic_filters = build_exclusion_filters(exclusions_dir=EXCLUSIONS_DIR, id_map=exclusion_id_map)
     all_filters = FILTERS + dynamic_filters
     return all_filters
