@@ -236,7 +236,7 @@ def readd_recently_modified_profiles(ids_list:list, currently_filtered_out:list,
     updates = recently_modified_profiles(currently_filtered_out, last_change_date, max_num, logger=logger)
 
     if updates:
-        msg = f"Adding {len(updates)} modified Profiles to be updated in the process."
+        msg = f"Re-adding {len(updates)} modified Profiles to be updated in the process."
         print(msg + "\n")
         if logger:
             logger.info(msg)
