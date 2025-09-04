@@ -202,6 +202,62 @@ def save_metadata(new_metas, logger=None):
         logger.info(f"{len(new_metas)} metadata entries written to {METADATA_FILE}.")
 
 
+# TODO duplicate code stuff here
+def get_all_local_ids(logger=None):
+    """
+    Load IDs from both the local IDs file and the removed IDs file.
+
+    Args:
+        logger (logging.Logger, optional): Logger for logging progress. Defaults to None.
+
+    Returns:
+        list: Combined list of ID strings from both sources.
+    """
+    all_ids = []
+
+    # read ids from text file
+    if os.path.exists(IDS_FILE):
+        try:
+            with open(IDS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    s = line.strip()
+                    if s:
+                        all_ids.append(s)
+        except Exception as e:
+            if logger:
+                logger.error(f"error reading {IDS_FILE}: {e}")
+    else:
+        if logger:
+            logger.info(f"{IDS_FILE} not found; skipping.")
+
+    # read ids from removed csv
+    if os.path.exists(REMOVED_IDS_FILE):
+        try:
+            df = pd.read_csv(REMOVED_IDS_FILE)
+            if "accession" in df.columns:
+                vals = (
+                    df["accession"]
+                    .dropna()
+                    .astype(str)
+                    .map(str.strip)
+                    .tolist()
+                )
+                all_ids.extend([v for v in vals if v])
+            else:
+                if logger:
+                    logger.error(f"'accession' column not found in {REMOVED_IDS_FILE}")
+        except Exception as e:
+            if logger:
+                logger.error(f"error reading {REMOVED_IDS_FILE}: {e}")
+    else:
+        if logger:
+            logger.info(f"{REMOVED_IDS_FILE} not found; skipping.")
+
+    if logger:
+        logger.info(f"Loaded {len(all_ids)} total ids.")
+    return all_ids
+
+
 def load_local_versions(logger=None):
     """
     Load local versions of sequence IDs from the local versions file.

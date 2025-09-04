@@ -50,6 +50,7 @@ from .file_io import (save_batch_info,
                       load_processed_ids,
                       load_local_versions,
                       load_removed_versions,
+                      get_all_local_ids,
                       cleanup_old_files,
                       get_last_run_date,
                       write_last_run_date,
@@ -657,6 +658,8 @@ def main():
             print(f"Removed {num_excluded} profiles from existing data.\n")
 
     # existing data
+    # TODO refractor this to only be called once
+    local_data = get_all_local_ids(logger)
     local_versions = load_local_versions(logger)
     removed_local = load_removed_versions(logger)
     # filter out profiles that do not need to be fetched, as their current version is up to date
@@ -665,7 +668,7 @@ def main():
     # readd profiles, whose metadata has been changed since the last run
     last_run_date = get_last_run_date(logger=logger)
     if last_run_date:
-        id_list = readd_recently_modified_profiles(id_list, filtered_out, last_run_date, max_num = LIMIT_NUM, logger= logger)
+        id_list = readd_recently_modified_profiles(local_data, id_list, last_run_date, max_num=LIMIT_NUM, logger=logger)
 
     # execute fetching and writing process
     process_profiles(id_list, BATCH_SIZE, FETCH_PARALLEL, NUM_WORKERS)

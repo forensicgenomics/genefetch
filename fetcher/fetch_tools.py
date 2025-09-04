@@ -186,7 +186,7 @@ def _accn_or_query(ids):
 
 
 def recently_modified_profiles(currently_filtered_out:list, last_change_date:date, max_num, logger=None,
-                               chunk_size = 100):
+                               chunk_size = 200):
     """
     Returns ids of currently_filtered_out list that were modified since the last run.
 
@@ -219,21 +219,21 @@ def recently_modified_profiles(currently_filtered_out:list, last_change_date:dat
     return updates
 
 
-def readd_recently_modified_profiles(ids_list:list, currently_filtered_out:list, last_change_date:date, max_num, logger=None):
+def readd_recently_modified_profiles(local_data:list, ids_list:list, last_change_date:date, max_num, logger=None):
     """
-        Re-add profiles that are filtered out from fetching as they are downloaded and have the current accession version,
-        yet have been modified since the last run to the processing list. Used to fetch altered metadata.
+        add profiles that exist locally, yet have been modified since the last run to the processing list.
+        Used to fetch profiles with altered metadata.
 
         Args:
-            ids_list (list): List of current accession numbers.
-            currently_filtered_out (list): List of currently filtered out accession numbers from existing data)
+            local_data (list): List all all local ids.
+            ids_list (list): List of current accession numbers to fetch.
             last_change_date (datetime.date): Date of the last metadata modification.
             logger (logging.Logger, optional): Logger for logging messages. Defaults to None.
 
         Returns:
             list: Updated list of accession numbers including modified profiles.
     """
-    updates = recently_modified_profiles(currently_filtered_out, last_change_date, max_num, logger=logger)
+    updates = recently_modified_profiles(local_data, last_change_date, max_num, logger=logger)
 
     if updates:
         msg = f"Re-adding {len(updates)} modified Profiles to be updated in the process."
