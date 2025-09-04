@@ -35,7 +35,7 @@ import os
 from email.generator import Generator
 
 import pandas as pd
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -504,16 +504,20 @@ def get_last_run_date(file_path=LAST_RUN_PATH, logger=None):
         if logger:
             logger.info(f"Last run date fetched: {last_run_date}.")
 
-        return last_run_date
 
     except Exception as e:
-        message = f"Failed to read date from {file_path}: {e}"
+        # 6 months ago today date instead
+        last_run_date = (datetime.now() - timedelta(days=5)).date()
+
+        # TODO throw a specific type of warning, encorporate with malformed data handling
+        message = f"Failed to read date from {file_path}: {e}\nUsing {last_run_date} instead."
         if logger:
             logger.warning(message)
-        else:
-            print(message)
+        print(message + "\n")
 
-    return None
+
+    return last_run_date
+
 
 
 def write_last_run_date(file_path=LAST_RUN_PATH, run_date=None, logger=None):
@@ -544,7 +548,7 @@ def write_last_run_date(file_path=LAST_RUN_PATH, run_date=None, logger=None):
     except Exception as e:
         message = f"Failed to write date to {file_path}: {e}"
         if logger:
-            logger.error(message)
+            logger.error(message + "\n")
         else:
             print(message)
 
