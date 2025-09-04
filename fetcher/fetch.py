@@ -327,7 +327,7 @@ def process_entries_sequential(id_list: list, batch_size: int):
                 "accession": accession_version,
                 "filter": result})
 
-        # save metadata in batches
+        # save metadaif not max_num:ta in batches
         if (index + 1) % batch_size == 0 or index == len(id_list) - 1:
             save_batch_info(index, filtered_entries, removed, metas, logger=logger)
             metas = []
@@ -656,15 +656,16 @@ def main():
         if num_excluded:
             print(f"Removed {num_excluded} profiles from existing data.\n")
 
-    # filter out profiles that do not need to be fetched, as their current version is up to date
+    # existing data
     local_versions = load_local_versions(logger)
     removed_local = load_removed_versions(logger)
-    id_list = filter_changed_profiles(id_list, local_versions, removed_local, logger=logger)
+    # filter out profiles that do not need to be fetched, as their current version is up to date
+    id_list, filtered_out = filter_changed_profiles(id_list, local_versions, removed_local, logger=logger)
 
     # readd profiles, whose metadata has been changed since the last run
     last_run_date = get_last_run_date(logger=logger)
     if last_run_date:
-        id_list = readd_recently_modified_profiles(SEARCH_TERM, id_list, last_run_date)
+        id_list = readd_recently_modified_profiles(id_list, filtered_out, last_run_date, max_num = LIMIT_NUM, logger= logger)
 
     # execute fetching and writing process
     process_profiles(id_list, BATCH_SIZE, FETCH_PARALLEL, NUM_WORKERS)

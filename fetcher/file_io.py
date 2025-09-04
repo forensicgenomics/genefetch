@@ -507,7 +507,7 @@ def get_last_run_date(file_path=LAST_RUN_PATH, logger=None):
 
     except Exception as e:
         # 6 months ago today date instead
-        last_run_date = (datetime.now() - timedelta(days=5)).date()
+        last_run_date = (datetime.now() - timedelta(days=100)).date()
 
         # TODO throw a specific type of warning, encorporate with malformed data handling
         message = f"Failed to read date from {file_path}: {e}\nUsing {last_run_date} instead."

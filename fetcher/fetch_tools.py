@@ -145,6 +145,7 @@ def filter_changed_profiles(accession_list, local_versions, local_removed_versio
         list: Filtered list of accession IDs to process.
     """
     filtered_list = []
+    filtered_out = []
 
     for accession in accession_list:
         accession_num, version = accession.split('.')
@@ -156,12 +157,14 @@ def filter_changed_profiles(accession_list, local_versions, local_removed_versio
         if version <= local_version and fasta_check:
             if logger:
                 logger.debug(f"Accession ID {accession} already downloaded and is up to date.")
+            filtered_out.append(accession)
             continue
         # also remove if that version is in the removed list
         removed_version = local_removed_versions.get(accession_num, 0) if local_removed_versions else 0
         if version <= removed_version:
             if logger:
                 logger.debug(f"Accession ID {accession} of current version previously removed.")
+            filtered_out.append(accession)
             continue
         if local_version != 0 and version > local_version:
             if logger:
@@ -172,44 +175,85 @@ def filter_changed_profiles(accession_list, local_versions, local_removed_versio
     if logger:
         logger.info(f"{len(accession_list) - len(filtered_list)} IDs dont need to be processed and are filtered out.")
 
-    return filtered_list
+    return filtered_list, filtered_out
 
 
-def readd_recently_modified_profiles(SEARCH_TERM, current_accs:list, last_change_date:date, logger=None):
+def _accn_or_query(ids):
+    ids = [i.strip() for i in ids if i and i.strip()]
+    if not ids:
+        return ""
+    return "(" + " OR ".join(f"{i}[ACCN]" for i in ids) + ")"
+
+
+def recently_modified_profiles(currently_filtered_out:list, last_change_date:date, max_num, logger=None,
+                               chunk_size = 100):
     """
-    Re-add profiles modified since the last run to the processing list.
+    Returns ids of currently_filtered_out list that were modified since the last run.
 
     Args:
-        SEARCH_TERM (str): Search term to use for fetching modified profiles.
-        current_accs (list): List of current accession numbers.
+        currently_filtered_out (list): List of current filtered out accession numbers.
         last_change_date (datetime.date): Date of the last metadata modification.
         logger (logging.Logger, optional): Logger for logging messages. Defaults to None.
 
     Returns:
-        list: Updated list of accession numbers including modified profiles.
+        list: modified profiles.
     """
+    if not currently_filtered_out:
+        return []
+
     num_days_passed = abs((date.today() - last_change_date).days) + 1
     if logger:
         logger.info(f"Fetching modified Profiles from the last {num_days_passed} days to refetch metadata.")
 
-    modified_profiles = fetch_profile_accs(SEARCH_TERM, n_days=num_days_passed)
-    if modified_profiles:
-        prev_len = len(current_accs)
-        # merge with filtered accession list
-        current_accs += list(set(modified_profiles) - set(current_accs))
+    modified = set()
+    # fetch by id in chunks using helper fun
+    for i in range(0, len(currently_filtered_out), chunk_size):
+        batch = currently_filtered_out[i:i+chunk_size]
+        term = _accn_or_query(batch)
+        hits = fetch_profile_accs(term, n_days=num_days_passed, logger=logger) or []
+        modified.update(hits)
+
+    # intersect with modified set
+    updates = [acc for acc in currently_filtered_out if acc in modified]
+
+    return updates
+
+
+def readd_recently_modified_profiles(ids_list:list, currently_filtered_out:list, last_change_date:date, max_num, logger=None):
+    """
+        Re-add profiles that are filtered out from fetching as they are downloaded and have the current accession version,
+        yet have been modified since the last run to the processing list. Used to fetch altered metadata.
+
+        Args:
+            ids_list (list): List of current accession numbers.
+            currently_filtered_out (list): List of currently filtered out accession numbers from existing data)
+            last_change_date (datetime.date): Date of the last metadata modification.
+            logger (logging.Logger, optional): Logger for logging messages. Defaults to None.
+
+        Returns:
+            list: Updated list of accession numbers including modified profiles.
+    """
+    updates = recently_modified_profiles(currently_filtered_out, last_change_date, max_num, logger=logger)
+
+    if updates:
+        msg = f"Adding {len(updates)} modified Profiles to be updated in the process."
+        print(msg + "\n")
         if logger:
-            logger.info(f"Adding {len(current_accs) - prev_len} modified Profiles.")
+            logger.info(msg)
 
-    return current_accs
+        ids_list = list(set(updates).union(set(ids_list)))
+
+    return ids_list
 
 
-def fetch_profile_accs(search_term, max_num=None, n_days=None, logger=None):
+# TODO hard coded max num
+def fetch_profile_accs(search_term, max_num=100000, n_days=None, logger=None):
     """
     Fetch accession numbers using the NCBI Entrez API.
 
     Args:
         search_term (str): Search term to use for fetching accessions.
-        max_num (int, optional): Maximum number of IDs to fetch. Defaults to None.
+        max_num (int, optional): Maximum number of IDs to fetch. Defaults to 10k since Entrez defaults this to 20 otherwise!
         n_days (int, optional): Fetch profiles modified in the last `n_days`. Defaults to None.
         logger (logging.Logger, optional): Logger for logging messages. Defaults to None.
 
