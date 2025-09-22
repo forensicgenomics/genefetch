@@ -50,12 +50,14 @@ from .file_io import (save_batch_info,
                       load_processed_ids,
                       load_local_versions,
                       load_removed_versions,
+                      get_all_local_ids,
                       cleanup_old_files,
                       get_last_run_date,
                       write_last_run_date,
                       write_seq_as_fasta,
                       post_process_metadata,
-                      clean_profiles_from_data)
+                      clean_profiles_from_data,
+                      apply_exclusions_to_local_data)
 from .metadata_tools import (get_pubmed_info,
                             get_assembly_info,
                             get_geo_info)
@@ -72,7 +74,8 @@ from .global_defaults import (LIMIT_NUM,
                               METADATA_TEMPLATE,
                               CLEAN_DIR,
                               DEBUG_DIR)
-from .filter_tools import load_filters
+from .filter_tools import (load_filters,
+                           read_exclusion_files)
 from .logger_setup import (get_logger,
                            check_run_success)
 from .post_process_check import main as post_process_check
@@ -90,7 +93,8 @@ logger.info(f"For a debug level log file, view the logfile within {DEBUG_DIR}.\n
 write_lock = threading.Lock()
 
 # dynamically load all filters
-FILTERS = load_filters()
+EXCLUSIONS = read_exclusion_files()
+FILTERS = load_filters(exclusion_id_map=EXCLUSIONS)
 
 ### all of this needs to stay here otherwise it causes some parallel problems
 set_entrez_globals()
@@ -324,7 +328,7 @@ def process_entries_sequential(id_list: list, batch_size: int):
                 "accession": accession_version,
                 "filter": result})
 
-        # save metadata in batches
+        # save metadaif not max_num:ta in batches
         if (index + 1) % batch_size == 0 or index == len(id_list) - 1:
             save_batch_info(index, filtered_entries, removed, metas, logger=logger)
             metas = []
@@ -510,7 +514,7 @@ def process_profiles(id_list:list, batch_size:int, parallel:bool, NUM_WORKERS):
         NUM_WORKERS (int): Number of worker threads for parallel processing.
     """
     print(f"Fetching {len(id_list)} Profiles.")
-    print(f"Fetching in Batch sizes of {batch_size}.")
+    print(f"Fetching in Batch sizes of {batch_size}.\n")
     if parallel:
         process_entries_parallel(id_list, batch_size, NUM_WORKERS)
     else:
@@ -566,6 +570,8 @@ def parse_args():
     parser.add_argument("--num-workers", type=int, default=NUM_WORKERS, help="Number of workers for parallel fetching.")
     parser.add_argument("--soft-restart", action="store_true", default=SOFT_RESTART, help="Restart softly with previously processed profiles.")
     parser.add_argument("--search-term", type=str, default=SEARCH_TERM, help="NCBI search term.")
+    parser.add_argument("--update-exclusions", action="store_true", help="Set this, if the exclusions dir changed since the last fetch,"
+                                                                         "in order to update existing data accordint to the exclusions.")
     parser.add_argument("--clean-dir", action="store_true", default=CLEAN_DIR, help="Set this flag to clean the output directory,"
                                                                                     " removing profiles not within the current calls fetch.")
     parser.add_argument("--y", action="store_true", default=False,
@@ -579,6 +585,9 @@ def check_valid_inputs(arg_dict):
     if arg_dict["max_num"] > LIMIT_NUM or arg_dict["max_num"] < 1:
         raise ValueError(f"Supplied `max-num` is not within the bounds of [1, {LIMIT_NUM}].\n"
                          f"Choose a number of Profiles to fetch with in those bounds.")
+
+    if (arg_dict["update_exclusions"] or arg_dict["clean_dir"]) and arg_dict["soft_restart"]:
+        raise ValueError("Do not run exclusion updates or data cleaning while performing a soft restart.")
 
     # TODO possibly add more checking other values here
 
@@ -594,10 +603,13 @@ def main():
     SOFT_RESTART = args.soft_restart
     SEARCH_TERM = args.search_term
     CLEAN_DIR = args.clean_dir
+    UPDATE_EXCLUDED = args.update_exclusions
     FORCE = args.y
 
+    # TODO this is maybe unecessarily complicated, we can probably just pass args
     check_valid_inputs({"max_num": MAX_NUM, "batch_size": BATCH_SIZE, "num_workers":NUM_WORKERS,
-                        "search_term": SEARCH_TERM, "clean_dir": CLEAN_DIR})
+                        "search_term": SEARCH_TERM, "clean_dir": CLEAN_DIR, "update_exclusions": UPDATE_EXCLUDED,
+                        "soft_restart": SOFT_RESTART})
 
     start_time = time.time()
     try:
@@ -605,8 +617,7 @@ def main():
         wait_helper(0)
         num_all = len(fetch_profile_accs(SEARCH_TERM, max_num=LIMIT_NUM, logger=logger))
 
-        print(f"\nProvided Search Term returns {num_all} total profiles.\n"
-              f"{len(id_list)} will be attempted to be fetched.\n")
+        print(f"\nProvided Search Term returns {num_all} total profiles.\n")
 
         if not FORCE:
             clean_msg = ("\033[93m\nExecuting the fetcher with the `clean-dir` flag set will remove any profiles from all data files "
@@ -635,16 +646,29 @@ def main():
     # soft restart by loading processed IDs and filtering the list
     if SOFT_RESTART:
         id_list = soft_restart(id_list, MAX_NUM, SEARCH_TERM)
+    else:
+        print(f"{len(id_list)} will be attempted to be updated or fetched.\n")
 
-    # filter out profiles that do not need to be fetched, as their current version is up to date
+
+    # remove profiles that have been added to the exclusions dir after the last fetch from existing data
+    if UPDATE_EXCLUDED:
+        print("Checking for updated exclusions and modifiying existing data accordingly.")
+        num_excluded = apply_exclusions_to_local_data(EXCLUSIONS, logger=logger)
+        if num_excluded:
+            print(f"Removed {num_excluded} profiles from existing data.\n")
+
+    # existing data
+    # TODO refractor this to only be called once
+    local_data = get_all_local_ids(logger)
     local_versions = load_local_versions(logger)
     removed_local = load_removed_versions(logger)
-    id_list = filter_changed_profiles(id_list, local_versions, removed_local, logger=logger)
+    # filter out profiles that do not need to be fetched, as their current version is up to date
+    id_list, filtered_out = filter_changed_profiles(id_list, local_versions, removed_local, logger=logger)
 
     # readd profiles, whose metadata has been changed since the last run
     last_run_date = get_last_run_date(logger=logger)
     if last_run_date:
-        id_list = readd_recently_modified_profiles(SEARCH_TERM, id_list, last_run_date)
+        id_list = readd_recently_modified_profiles(local_data, id_list, last_run_date, max_num=LIMIT_NUM, logger=logger)
 
     # execute fetching and writing process
     process_profiles(id_list, BATCH_SIZE, FETCH_PARALLEL, NUM_WORKERS)
@@ -664,11 +688,14 @@ def main():
         full_id_list = []
 
     if CLEAN_DIR:
-        print("Cleaning data directory based on current query.")
+        print("\nCleaning data directory based on current query.")
         logger.info(f"Cleaning data directory by removing any profile data not present in the current query with the "
                    f"search-term: {SEARCH_TERM} and a max-num of {LIMIT_NUM}.")
         if full_id_list:
-            clean_profiles_from_data(full_id_list, logger=logger)
+            removed_profiles = clean_profiles_from_data(full_id_list, logger=logger)
+            clean_msg = f"Removed {len(removed_profiles)} profiles while cleaning.\n"
+            logger.info(clean_msg)
+            print(clean_msg)
         else:
             logger.error("Fetch query missing or empty, Cannot clean directory without successful ncbi query. Skipping.")
 

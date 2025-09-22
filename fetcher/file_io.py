@@ -35,7 +35,7 @@ import os
 from email.generator import Generator
 
 import pandas as pd
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
@@ -202,6 +202,62 @@ def save_metadata(new_metas, logger=None):
         logger.info(f"{len(new_metas)} metadata entries written to {METADATA_FILE}.")
 
 
+# TODO duplicate code stuff here
+def get_all_local_ids(logger=None):
+    """
+    Load IDs from both the local IDs file and the removed IDs file.
+
+    Args:
+        logger (logging.Logger, optional): Logger for logging progress. Defaults to None.
+
+    Returns:
+        list: Combined list of ID strings from both sources.
+    """
+    all_ids = []
+
+    # read ids from text file
+    if os.path.exists(IDS_FILE):
+        try:
+            with open(IDS_FILE, "r", encoding="utf-8") as f:
+                for line in f:
+                    s = line.strip()
+                    if s:
+                        all_ids.append(s)
+        except Exception as e:
+            if logger:
+                logger.error(f"error reading {IDS_FILE}: {e}")
+    else:
+        if logger:
+            logger.info(f"{IDS_FILE} not found; skipping.")
+
+    # read ids from removed csv
+    if os.path.exists(REMOVED_IDS_FILE):
+        try:
+            df = pd.read_csv(REMOVED_IDS_FILE)
+            if "accession" in df.columns:
+                vals = (
+                    df["accession"]
+                    .dropna()
+                    .astype(str)
+                    .map(str.strip)
+                    .tolist()
+                )
+                all_ids.extend([v for v in vals if v])
+            else:
+                if logger:
+                    logger.error(f"'accession' column not found in {REMOVED_IDS_FILE}")
+        except Exception as e:
+            if logger:
+                logger.error(f"error reading {REMOVED_IDS_FILE}: {e}")
+    else:
+        if logger:
+            logger.info(f"{REMOVED_IDS_FILE} not found; skipping.")
+
+    if logger:
+        logger.info(f"Loaded {len(all_ids)} total ids.")
+    return all_ids
+
+
 def load_local_versions(logger=None):
     """
     Load local versions of sequence IDs from the local versions file.
@@ -228,10 +284,6 @@ def save_dropped_rows(dropped_df, reason, logger=None):
     """
     Saves dropped rows to a CSV in the debug directory, appending a 'reason' column.
     By default, it appends to a file named 'duplicates_debug.csv'.
-
-    If you prefer a timestamped approach, you can add:
-       timestamp = datetime.now().strftime('%Y%m%d-%H%M%S')
-       debug_file = os.path.join(DEBUG_DIR, f"{prefix}_{timestamp}.csv")
 
     Args:
         dropped_df (pd.DataFrame): DataFrame of dropped rows, must have an 'accession' column.
@@ -331,15 +383,37 @@ def load_removed_versions(logger=None):
     """
     if not os.path.exists(REMOVED_IDS_FILE):
         return []
+    try:
+        df = pd.read_csv(REMOVED_IDS_FILE)
+    except Exception as e:
+        if logger: logger.error(f"error reading {REMOVED_IDS_FILE}: {e}")
+        return {}
+
+    #TODO new version, possible testing here
     local_removed = {}
-    with open(REMOVED_IDS_FILE, 'r') as f:
-        next(f)
-        for line in f:
-            accession_num, _ = line.strip().split(',')
-            accession, version = accession_num.strip().split('.')
-            local_removed[accession] = int(version)
+    for raw in df["accession"].dropna().astype(str):
+        s = raw.strip()
+        if not s:
+            continue
+        if "." not in s:
+            # no version present -> treat as version 0
+            if logger:
+                logger.warning(f"no version for accession '{s}' in {REMOVED_IDS_FILE}; assuming version 0")
+            acc = s
+            v = 0
+        else:
+            acc, ver = s.rsplit(".", 1)
+            try:
+                v = int(ver)
+            except ValueError:
+                if logger:
+                    logger.warning(f"non-integer version in '{s}' in {REMOVED_IDS_FILE}; assuming version 0")
+                v = 0
+        local_removed[acc] = max(local_removed.get(acc, 0), v)
+
     if logger:
         logger.info(f"Loaded {len(local_removed)} local removed versions.")
+
     return local_removed
 
 
@@ -486,16 +560,20 @@ def get_last_run_date(file_path=LAST_RUN_PATH, logger=None):
         if logger:
             logger.info(f"Last run date fetched: {last_run_date}.")
 
-        return last_run_date
 
     except Exception as e:
-        message = f"Failed to read date from {file_path}: {e}"
-        if logger:
-            logger.error(message)
-        else:
-            print(message)
+        # 6 months ago today date instead
+        last_run_date = (datetime.now() - timedelta(days=100)).date()
 
-    return None
+        # TODO throw a specific type of warning, encorporate with malformed data handling
+        message = f"Failed to read date from {file_path}: {e}\nUsing {last_run_date} instead."
+        if logger:
+            logger.warning(message)
+        print(message + "\n")
+
+
+    return last_run_date
+
 
 
 def write_last_run_date(file_path=LAST_RUN_PATH, run_date=None, logger=None):
@@ -526,7 +604,7 @@ def write_last_run_date(file_path=LAST_RUN_PATH, run_date=None, logger=None):
     except Exception as e:
         message = f"Failed to write date to {file_path}: {e}"
         if logger:
-            logger.error(message)
+            logger.error(message + "\n")
         else:
             print(message)
 
@@ -553,7 +631,7 @@ def post_process_metadata(logger=None):
     if logger:
         logger.info(f"Loaded {len(meta_df) - 1} rows from metadata file.")
 
-    print("Performing post-processing of metadata file.")
+    print("\nPerforming post-processing of metadata file.")
     if logger:
         logger.info(f"Performing Post-processing of metadata file.")
 
@@ -611,148 +689,192 @@ def post_process_metadata(logger=None):
             logger.info(f"Saved {len(removed_df)} removed rows to: {removed_file}")
 
 
-def clean_profiles_from_data(ids_list, logger=None):
+def clean_profiles_from_data(ids_list, logger=None, mode="keep", removed_reason="excluded"):
     """
-    Removes any profiles (and associated data) that are NOT in the given `ids_list`.
+    Cleans local data based on a list of accessions.
+    Keep mode is used during `clean-dir` where it removes any traces of profiles (also in removed.csv) that
+        are not in the supplied ids_list.
+    Remove mode is used during `update-exclusions` where it removes traces of profiles in the supplied ids_list
+        and adds them to the removed.csv as well as remove any profiles from remove.csv that are not in the supplied list.
 
-    This function:
-      1. Updates the local versions file (`IDS_FILE`) to keep only IDs that are in `ids_list`.
-      2. Updates `REMOVED_IDS_FILE` (removed.csv) to keep only rows whose 'accession' is in `ids_list`.
-      3. Updates `METADATA_FILE` to keep only rows whose 'accession' is in `ids_list`.
-      4. Removes FASTA files from `SEQS_DIR` if their root name is not in `ids_list`.
-         (For an accession like "AB123456.1", the FASTA file is "AB123456.fasta".)
+    mode:
+      - "keep"   -> keep only these ids, remove everything else; and remove these ids from removed.csv
+      - "remove" -> remove only these ids; append only actually-removed ids to removed.csv (with 'removed_reason'),
+                    then prune removed.csv to contain only accessions in this remove set.
 
     Args:
-        ids_list (list): List of *full* accessions (e.g. ["AB123456.1", "XYZ789123.2"]) that should remain.
-        logger (logging.Logger, optional): Logger for progress/error messages. Defaults to None.
+        ids_list (iterable[str]): Full accessions like ["AB123456.1", "XYZ789123.2"].
+        logger (logging.Logger, optional)
+        mode (str): "keep" or "remove".
+        removed_reason (str): Reason written to removed.csv for actually-removed ids.
 
     Returns:
-        int: Returns 0 upon successful cleanup.
+        List of acctually removed ids or an empty set.
     """
+    if mode not in {"keep", "remove"}:
+        raise ValueError("mode must be 'keep' or 'remove'")
 
-    keep_set = set(ids_list)
+    target_set = {str(x).strip() for x in ids_list if str(x).strip()}
 
-    # remove from IDS_FILE
+    def log(msg):
+        if logger: logger.info(msg)
+        else: print(msg)
+
+    # ids removed from data
+    actually_removed_ids = set()
+
+    # IDS_FILE
     if os.path.exists(IDS_FILE):
         try:
-            with open(IDS_FILE, "r") as f:
-                lines = [line.strip() for line in f if line.strip()]
-
-            before_count = len(lines)
-            kept_lines = [ln for ln in lines if ln in keep_set]
-            after_count = len(kept_lines)
-
-            if after_count < before_count:
-                with open(IDS_FILE, "w") as f:
-                    for ln in kept_lines:
+            with open(IDS_FILE, "r", encoding="utf-8") as f:
+                lines = [ln.strip() for ln in f if ln.strip()]
+            if mode == "keep":
+                kept = [ln for ln in lines if ln in target_set]
+                removed_here = set(lines) - set(kept)
+            else:
+                kept = [ln for ln in lines if ln not in target_set]
+                removed_here = set(lines) - set(kept)
+            if len(kept) != len(lines):
+                with open(IDS_FILE, "w", encoding="utf-8") as f:
+                    for ln in kept:
                         f.write(ln + "\n")
-                if logger:
-                    logger.info(
-                        f"Removed {before_count - after_count} entries from {IDS_FILE} "
-                        f"that are not in the provided list."
-                    )
+                log(f"updated {IDS_FILE} ({mode}).")
+            if mode == "keep":
+                actually_removed_ids |= removed_here
             else:
-                if logger:
-                    logger.info(
-                        f"No entries removed from {IDS_FILE}; all were in the provided list."
-                    )
+                actually_removed_ids |= (removed_here & target_set)
         except Exception as e:
-            if logger:
-                logger.error(f"Error updating {IDS_FILE}: {e}")
-            else:
-                print(f"Error updating {IDS_FILE}: {e}")
-
-    # REMOVED_IDS_FILE
-    if os.path.exists(REMOVED_IDS_FILE):
-        try:
-            df_removed = pd.read_csv(REMOVED_IDS_FILE)
-            before_count = len(df_removed)
-            df_removed = df_removed[df_removed["accession"].isin(keep_set)]
-            after_count = len(df_removed)
-            if after_count < before_count:
-                df_removed.to_csv(REMOVED_IDS_FILE, index=False)
-                if logger:
-                    logger.info(
-                        f"Removed {before_count - after_count} rows from {REMOVED_IDS_FILE} "
-                        f"that are not in the provided list."
-                    )
-            else:
-                if logger:
-                    logger.info(
-                        f"No rows removed from {REMOVED_IDS_FILE}; "
-                        f"all were in the provided list."
-                    )
-        except Exception as e:
-            if logger:
-                logger.error(f"Error updating {REMOVED_IDS_FILE}: {e}")
-            else:
-                print(f"Error updating {REMOVED_IDS_FILE}: {e}")
+            log(f"error updating {IDS_FILE}: {e}")
 
     # METADATA_FILE
     if os.path.exists(METADATA_FILE):
         try:
             df_meta = pd.read_csv(METADATA_FILE)
             if "accession" in df_meta.columns:
-                before_count = len(df_meta)
-                df_meta = df_meta[df_meta["accession"].isin(keep_set)]
-                after_count = len(df_meta)
-                if after_count < before_count:
-                    df_meta.to_csv(METADATA_FILE, index=False)
-                    if logger:
-                        logger.info(
-                            f"Removed {before_count - after_count} rows from {METADATA_FILE} "
-                            f"that are not in the provided list."
-                        )
+                acc_before = set(df_meta["accession"].astype(str))
+                if mode == "keep":
+                    new_meta = df_meta[df_meta["accession"].astype(str).isin(target_set)]
                 else:
-                    if logger:
-                        logger.info(
-                            f"No rows removed from {METADATA_FILE}; "
-                            f"all were in the provided list."
-                        )
-            else:
-                if logger:
-                    logger.warning(
-                        f"No 'accession' column in {METADATA_FILE}; skipping removal."
-                    )
-        except Exception as e:
-            if logger:
-                logger.error(f"Error updating {METADATA_FILE}: {e}")
-            else:
-                print(f"Error updating {METADATA_FILE}: {e}")
+                    new_meta = df_meta[~df_meta["accession"].astype(str).isin(target_set)]
+                acc_after = set(new_meta["accession"].astype(str))
+                if len(new_meta) != len(df_meta):
+                    new_meta.to_csv(METADATA_FILE, index=False)
+                    log(f"updated {METADATA_FILE} ({mode}).")
 
-    # remove FASTA files in SEQS_DIR
+                removed_from_meta = acc_before - acc_after
+                if mode == "keep":
+                    actually_removed_ids |= removed_from_meta
+                else:
+                    actually_removed_ids |= (removed_from_meta & target_set)
+            else:
+                log(f"no 'accession' column in {METADATA_FILE}; skipping.")
+        except Exception as e:
+            log(f"error updating {METADATA_FILE}: {e}")
+
+    # FASTA files
     if os.path.exists(SEQS_DIR):
         try:
-            valid_roots = set(acc.split(".")[0] for acc in keep_set)
-
-            all_files = os.listdir(SEQS_DIR)
-            fasta_files = [f for f in all_files if f.lower().endswith(".fasta")]
-
-            removed_count = 0
-            for fasta_name in fasta_files:
-                root_name = os.path.splitext(fasta_name)[0]
-                if root_name not in valid_roots:
-                    # remove
-                    full_path = os.path.join(SEQS_DIR, fasta_name)
-                    try:
-                        os.remove(full_path)
-                        removed_count += 1
-                        if logger:
-                            logger.debug(f"Removed FASTA file not in keep list: {full_path}")
-                    except Exception as e:
-                        if logger:
-                            logger.error(f"Error removing {full_path}: {e}")
-                        else:
-                            print(f"Error removing {full_path}: {e}")
-            if logger and removed_count > 0:
-                logger.info(
-                    f"Removed {removed_count} FASTA files from {SEQS_DIR} "
-                    f"that are not in the current query."
-                )
-        except Exception as e:
-            if logger:
-                logger.error(f"Error cleaning up FASTA files in {SEQS_DIR}: {e}")
+            target_roots = {acc.split(".", 1)[0] for acc in target_set}
+            fasta_files = [f for f in os.listdir(SEQS_DIR) if f.lower().endswith(".fasta")]
+            removed_roots = set()
+            if mode == "keep":
+                for fasta_name in fasta_files:
+                    root = os.path.splitext(fasta_name)[0]
+                    if root not in target_roots:
+                        try:
+                            os.remove(os.path.join(SEQS_DIR, fasta_name))
+                        except Exception as e:
+                            log(f"error removing {fasta_name}: {e}")
             else:
-                print(f"Error cleaning up FASTA files in {SEQS_DIR}: {e}")
+                for fasta_name in fasta_files:
+                    root = os.path.splitext(fasta_name)[0]
+                    if root in target_roots:
+                        try:
+                            os.remove(os.path.join(SEQS_DIR, fasta_name))
+                            removed_roots.add(root)
+                        except Exception as e:
+                            log(f"error removing {fasta_name}: {e}")
+            if mode == "remove" and removed_roots:
+                for acc in target_set:
+                    if acc.split(".", 1)[0] in removed_roots:
+                        actually_removed_ids.add(acc)
+        except Exception as e:
+            log(f"error cleaning fasta files in {SEQS_DIR}: {e}")
 
-    return 0
+    # removed.csv
+    try:
+        if mode == "keep":
+            # drop accessions from removed.csv that are not in the keep set
+            if os.path.exists(REMOVED_IDS_FILE) and target_set:
+                df = pd.read_csv(REMOVED_IDS_FILE)
+                before = len(df)
+                df = df[df["accession"].astype(str).isin(target_set)]
+                if len(df) != before:
+                    df.to_csv(REMOVED_IDS_FILE, index=False)
+                    log(f"pruned {before - len(df)} row(s) from {REMOVED_IDS_FILE} to match keep set.")
+
+            if actually_removed_ids:
+                log(f"keep mode: removed {len(actually_removed_ids)} accessions from ids/metadata.")
+
+        else: # remove mode
+            # append only actually removed ids
+            if actually_removed_ids:
+                removed_entries = [(acc, removed_reason) for acc in sorted(actually_removed_ids)]
+                save_removed_versions(removed_entries, logger=logger)
+
+                log(f"remove mode: removed {len(actually_removed_ids)} accessions from ids/metadata and added them to the removed file.")
+
+            # keep only rows whose accession is in the current remove set
+            # so delete any from removed.csv that were removed before but are no longer
+            if os.path.exists(REMOVED_IDS_FILE):
+                df = pd.read_csv(REMOVED_IDS_FILE)
+                before = len(df)
+                df = df[df["accession"].astype(str).isin(target_set)]
+                if len(df) != before:
+                    df.to_csv(REMOVED_IDS_FILE, index=False)
+                    log(f"pruned non-requested ids from {REMOVED_IDS_FILE} to match current exclusions.")
+
+    except Exception as e:
+        log(f"error updating {REMOVED_IDS_FILE}: {e}")
+
+    return actually_removed_ids
+
+
+def apply_exclusions_to_local_data(excluded_id_map, logger=None):
+    """
+    Removes excluded profiles from local data and appends them to the removed list.
+
+    Args:
+        excluded_id_map (dict[str, set[str]]): Mapping from exclusion reason (e.g., file basename)
+            to a set of accessions (full id.version strings) to remove.
+        logger (logging.Logger, optional): Logger for writing messages. Defaults to None.
+
+    Returns:
+        int: Number of unique accessions requested for removal in this run.
+    """
+    if not excluded_id_map:
+        return 0
+
+    if logger:
+        logger.info("Checking for newly excluded Profiles that would need to be deleted from data.")
+
+    processed = set()
+    removed_ids = set()
+    for reason in sorted(excluded_id_map.keys()):
+        ids = [acc.strip() for acc in excluded_id_map[reason] if str(acc).strip()]
+        # prevent double work within the same run
+        ids_to_remove = [acc for acc in ids if acc not in processed]
+        if not ids_to_remove:
+            continue
+
+        removed_ids.update(clean_profiles_from_data(
+                                ids_list=ids_to_remove,
+                                logger=logger,
+                                mode="remove",
+                                removed_reason=reason
+                            )
+        )
+
+        processed.update(ids_to_remove)
+
+    return len(removed_ids)
