@@ -43,5 +43,7 @@ genefetch is written in **Python 3.8+**, distributed under the **MPL-2.0** licen
 python run_fetcher.py \
   --search-term "mitochondrion complete genome[Title] AND Homo sapiens[Organism]" \
   --fetch-parallel \
-  --num-workers 20 \
-  --output results/
+  --max-num 70000 \
+  --batch-size 250 \
+  --clean-dir
+
